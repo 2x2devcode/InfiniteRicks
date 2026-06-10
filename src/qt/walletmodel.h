@@ -1,6 +1,8 @@
 #ifndef WALLETMODEL_H
 #define WALLETMODEL_H
 
+#include <boost/signals2/connection.hpp>
+
 #include <QObject>
 #include <vector>
 #include <map>
@@ -146,6 +148,10 @@ private:
     int cachedNumBlocks;
 
     QTimer *pollTimer;
+
+    boost::signals2::scoped_connection m_connNotifyStatusChanged;
+    boost::signals2::scoped_connection m_connNotifyAddressBookChanged;
+    boost::signals2::scoped_connection m_connNotifyTransactionChanged;
 
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();

@@ -9,9 +9,6 @@
 #include "walletdb.h" // for BackupWallet
 #include "base58.h"
 
-#include <boost/bind/bind.hpp>
-using namespace boost::placeholders;
-
 #include <QSet>
 #include <QTimer>
 
@@ -354,18 +351,24 @@ static void NotifyTransactionChanged(WalletModel *walletmodel, CWallet *wallet, 
 
 void WalletModel::subscribeToCoreSignals()
 {
-    // Connect signals to wallet
-    wallet->NotifyStatusChanged.connect(boost::bind(&NotifyKeyStoreStatusChanged, this, boost::placeholders::_1));
-    wallet->NotifyAddressBookChanged.connect(boost::bind(NotifyAddressBookChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
-    wallet->NotifyTransactionChanged.connect(boost::bind(NotifyTransactionChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
+    m_connNotifyStatusChanged = wallet->NotifyStatusChanged.connect([this](CCryptoKeyStore *keystore) {
+        NotifyKeyStoreStatusChanged(this, keystore);
+    });
+    m_connNotifyAddressBookChanged = wallet->NotifyAddressBookChanged.connect(
+        [this](CWallet *w, const CTxDestination &address, const std::string &label, bool isMine, ChangeType status) {
+            NotifyAddressBookChanged(this, w, address, label, isMine, status);
+        });
+    m_connNotifyTransactionChanged = wallet->NotifyTransactionChanged.connect(
+        [this](CWallet *w, const uint256 &hash, ChangeType status) {
+            NotifyTransactionChanged(this, w, hash, status);
+        });
 }
 
 void WalletModel::unsubscribeFromCoreSignals()
 {
-    // Disconnect signals from wallet
-    wallet->NotifyStatusChanged.disconnect(boost::bind(&NotifyKeyStoreStatusChanged, this, boost::placeholders::_1));
-    wallet->NotifyAddressBookChanged.disconnect(boost::bind(NotifyAddressBookChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
-    wallet->NotifyTransactionChanged.disconnect(boost::bind(NotifyTransactionChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
+    m_connNotifyStatusChanged.disconnect();
+    m_connNotifyAddressBookChanged.disconnect();
+    m_connNotifyTransactionChanged.disconnect();
 }
 
 // WalletModel::UnlockContext implementation
