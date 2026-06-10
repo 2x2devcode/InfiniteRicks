@@ -9,6 +9,9 @@
 #include "walletdb.h" // for BackupWallet
 #include "base58.h"
 
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
+
 #include <QSet>
 #include <QTimer>
 

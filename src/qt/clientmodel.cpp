@@ -8,6 +8,9 @@
 #include "main.h"
 #include "ui_interface.h"
 
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
+
 #include <QDateTime>
 #include <QTimer>
 
