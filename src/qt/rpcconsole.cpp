@@ -204,7 +204,7 @@ RPCConsole::RPCConsole(QWidget *parent) :
     connect(ui->clearButton, SIGNAL(clicked()), this, SLOT(clear()));
 
     // set OpenSSL version label
-    ui->openSSLVersion->setText(SSLeay_version(SSLEAY_VERSION));
+    ui->openSSLVersion->setText(OpenSSL_version(OPENSSL_VERSION));
 
     startExecutor();
 
