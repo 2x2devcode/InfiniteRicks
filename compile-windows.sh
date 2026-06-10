@@ -424,6 +424,17 @@ build_leveldb() {
     popd >/dev/null
 }
 
+copy_cli_runtime_dlls() {
+    # Fallback: if winpthread was linked dynamically, ship the DLL beside the exe.
+    local mingw_lib="/usr/${MINGW_PREFIX}/lib"
+    local dll="$mingw_lib/libwinpthread-1.dll"
+    [[ -f "$dll" ]] || return 0
+    if x86_64-w64-mingw32-objdump -p "$OUTPUT_DIR/InfiniteRicksd.exe" 2>/dev/null | grep -qi 'libwinpthread-1.dll'; then
+        cp -f "$dll" "$OUTPUT_DIR/"
+        log "Copied libwinpthread-1.dll next to InfiniteRicksd.exe (runtime dependency)"
+    fi
+}
+
 build_cli() {
     log "Building InfiniteRicksd.exe"
     build_leveldb
@@ -436,6 +447,7 @@ build_cli() {
         USE_UPNP=1
     cp InfiniteRicksd.exe "$OUTPUT_DIR/"
     popd >/dev/null
+    copy_cli_runtime_dlls
     log "CLI binary: $OUTPUT_DIR/InfiniteRicksd.exe"
 }
 
