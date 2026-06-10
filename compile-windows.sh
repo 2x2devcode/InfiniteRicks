@@ -439,6 +439,44 @@ build_cli() {
     log "CLI binary: $OUTPUT_DIR/InfiniteRicksd.exe"
 }
 
+meson_wrap_cache_file() {
+    local url="$1"
+    local base
+    base="$(basename "$url")"
+    python3 -c "import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8] + '-' + sys.argv[2])" "$url" "$base"
+}
+
+prefetch_mxe_meson_wraps() {
+    local cache="$MXE_DIR/.meson-package-cache"
+    mkdir -p "$cache"
+    export MESON_PACKAGE_CACHE_DIR="$cache"
+
+    local wraps=(
+        "https://github.com/mesonbuild/wrapdb/releases/download/pcre2_10.46-1/pcre2-10.46.tar.bz2"
+    )
+    local url cached name
+    for url in "${wraps[@]}"; do
+        name="$(meson_wrap_cache_file "$url")"
+        cached="$cache/$name"
+        [[ -f "$cached" ]] && continue
+        log "Prefetching meson wrap: $name (MXE glib needs this)"
+        if ! curl -fL --retry 5 --retry-delay 10 -o "$cached" "$url"; then
+            die "Could not download $url — MXE glib/Qt build needs internet access to GitHub."
+        fi
+    done
+}
+
+ensure_mxe_host_ninja() {
+    local host_bin="$MXE_DIR/usr/x86_64-pc-linux-gnu/bin"
+    local host_installed="$MXE_DIR/usr/x86_64-pc-linux-gnu/installed/ninja"
+    [[ -f "$host_installed" ]] && return 0
+    command -v ninja >/dev/null 2>&1 || return 0
+    log "Using system ninja for MXE host tools"
+    mkdir -p "$host_bin"
+    ln -sf "$(command -v ninja)" "$host_bin/ninja"
+    touch "$host_installed"
+}
+
 ensure_mxe() {
   [[ "$BUILD_GUI" -eq 1 ]] || return 0
   [[ "$BUILD_MXE_QT" -eq 1 ]] || return 0
@@ -460,7 +498,17 @@ MXE_TARGETS := ${MXE_TARGET}
 JOBS := ${JOBS}
 EOF
 
+  # Some minimal Ubuntu images lack default -lstdc++ search paths for MXE host tools.
+  export LIBRARY_PATH="/usr/lib/gcc/$(gcc -dumpmachine)/$(gcc -dumpversion)${LIBRARY_PATH:+:$LIBRARY_PATH}"
+  ensure_mxe_host_ninja
+  prefetch_mxe_meson_wraps
+
   pushd "$MXE_DIR" >/dev/null
+  # Host glib failed for some users when meson could not download wrapdb pcre2.
+  if [[ ! -f "usr/x86_64-pc-linux-gnu/installed/glib" ]]; then
+      log "Building MXE host glib (one-time step before Qt)..."
+      make glib -j"$JOBS" MXE_TARGETS=x86_64-pc-linux-gnu || die "MXE host glib failed. Ensure internet access to github.com and retry."
+  fi
   make qtbase -j"$JOBS" MXE_TARGETS="${MXE_TARGET}"
   popd >/dev/null
 
@@ -480,8 +528,10 @@ build_gui() {
     rm -rf "$gui_build_dir"
     mkdir -p "$gui_build_dir"
 
+    export PATH="$MXE_DIR/usr/bin:$mxe_qt_bin:$PATH"
+
     pushd "$gui_build_dir" >/dev/null
-  "$qmake_bin" \
+    "$qmake_bin" \
         -spec win32-g++ \
         "$REPO_ROOT/InfiniteRicks-qt.pro" \
         RELEASE=1 \
@@ -495,7 +545,9 @@ build_gui() {
         OPENSSL_INCLUDE_PATH="$DEPS_DIR/include" \
         OPENSSL_LIB_PATH="$DEPS_DIR/lib" \
         MINIUPNPC_INCLUDE_PATH="$DEPS_DIR/include/miniupnpc" \
-        MINIUPNPC_LIB_PATH="$DEPS_DIR/lib"
+        MINIUPNPC_LIB_PATH="$DEPS_DIR/lib" \
+        QMAKE_LRELEASE="$mxe_qt_bin/lrelease" \
+        QMAKE_RANLIB="${MXE_TARGET}-ranlib"
 
     make -j"$JOBS"
 
