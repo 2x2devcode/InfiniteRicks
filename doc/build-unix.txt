@@ -61,13 +61,14 @@ Versions used in this release:
 
 Dependency Build Instructions: Ubuntu & Debian
 ----------------------------------------------
-sudo apt-get install build-essential
-sudo apt-get install libssl-dev
-sudo apt-get install libdb++-dev
-sudo apt-get install libboost-all-dev
-sudo apt-get install libqrencode-dev
-***This Step is needed as well****
-sudo apt-get install libqt4-dev libminiupnpc-dev
+Ubuntu 22.04 / 24.04 (daemon):
+sudo apt-get install build-essential libssl-dev libdb++-dev libboost-all-dev libminiupnpc-dev
+
+Ubuntu 18.04 and earlier (daemon):
+sudo apt-get install build-essential libssl-dev libdb++-dev libboost-all-dev libminiupnpc-dev
+
+Qt GUI (optional, Ubuntu 22.04 / 24.04):
+sudo apt-get install qtbase5-dev qttools5-dev-tools libqrencode-dev
 
 If using Boost 1.37, append -mt to the boost libraries in the makefile.
 

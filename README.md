@@ -32,7 +32,7 @@ https://infinitericks.com
 
 
 ##How to compile and use the Linux Deamon
-Tested and working on Ubtunu 14 - 16.04 and 18. Version 16.04 is recommended. Versions 20.04 and later do not currently compile due to changes in OpenSSL 1.1 and the Boost C++ library in that version.
+Tested and working on Ubuntu 16.04, 18.04, 22.04 and 24.04.
 
 ### Swapfile
 You can check if your server has a swap file already with the ```swapon``` command.  If your system has less than 1.5GB of memory, you'll want at least a 2GB swap area.  Add a new swapfile with:
@@ -55,14 +55,17 @@ sudo echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
 ### Install all required dependencies
 
-```sudo apt-get update && sudo apt-get upgrade
+Ubuntu 22.04 / 24.04:
+```
+sudo apt-get update && sudo apt-get upgrade -y
 sudo apt-get -y install nano ntp unzip git build-essential libssl-dev
-sudo apt-get -y install libdb-dev libdb++-dev libboost-all-dev libqrencode-dev aptitude
-sudo aptitude -y install miniupnpc libminiupnpc-dev
+sudo apt-get -y install libdb-dev libdb++-dev libboost-all-dev libminiupnpc-dev
 ```
-ubuntu 18.04
+
+Ubuntu 18.04 (legacy):
 ```
-sudo apt-get install libssl1.0-dev
+sudo apt-get -y install nano ntp unzip git build-essential libssl1.0-dev
+sudo apt-get -y install libdb-dev libdb++-dev libboost-all-dev libminiupnpc-dev
 sudo apt-get install libqt4-dev
 ```
 If you get an error mentioning lock files, you probably have a desktop or background package update tool running that prevents other apt changes from happening.  You can use the ```lsof``` utility to figure out what program holds the lock and then pause it from running.
