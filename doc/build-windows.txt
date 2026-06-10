@@ -1,0 +1,354 @@
+InfiniteRicks - Cross-compiling Windows binaries on Ubuntu 22.04
+================================================================
+
+This guide explains how to build Windows executables from Ubuntu 22.04:
+
+  - InfiniteRicksd.exe   (CLI daemon, console)
+  - InfiniteRicks-qt.exe (GUI wallet)
+
+Both targets are cross-compiled with MinGW-w64. The GUI build also requires
+Qt libraries compiled for Windows.
+
+
+Overview
+--------
+
+  Ubuntu 22.04 host
+        |
+        +-- MinGW-w64 toolchain
+        +-- OpenSSL / Berkeley DB / Boost / miniupnpc (Windows libs)
+        +-- Qt for MinGW (GUI only)
+        |
+        v
+  InfiniteRicksd.exe
+  InfiniteRicks-qt.exe
+
+
+1. Install base tools (Ubuntu 22.04)
+--------------------------------------
+
+sudo apt-get update
+sudo apt-get install -y \
+    build-essential git curl wget unzip cmake \
+    mingw-w64 g++-mingw-w64 \
+    autoconf automake libtool pkg-config \
+    nsis
+
+Create a working directory for Windows dependencies:
+
+mkdir -p ~/infinite-ricks-win
+cd ~/infinite-ricks-win
+
+Set the MinGW target prefix (32-bit is the default in makefile.linux-mingw):
+
+export MINGW_PREFIX=/usr/i686-w64-mingw32
+export CC=${MINGW_PREFIX}-gcc
+export CXX=${MINGW_PREFIX}-g++
+export AR=${MINGW_PREFIX}-ar
+export RANLIB=${MINGW_PREFIX}-ranlib
+export STRIP=${MINGW_PREFIX}-strip
+
+For 64-bit Windows binaries, use instead:
+
+export MINGW_PREFIX=/usr/x86_64-w64-mingw32
+export CC=${MINGW_PREFIX}-gcc
+export CXX=${MINGW_PREFIX}-g++
+export AR=${MINGW_PREFIX}-ar
+export RANLIB=${MINGW_PREFIX}-ranlib
+export STRIP=${MINGW_PREFIX}-strip
+
+Set DEPSDIR to the folder where Windows libraries will be installed.
+This path is used by src/makefile.linux-mingw:
+
+export DEPSDIR=${MINGW_PREFIX}
+
+
+2. Build dependency libraries for MinGW
+---------------------------------------
+
+All commands below assume the environment variables from step 1 are set.
+
+
+OpenSSL
+-------
+
+wget https://www.openssl.org/source/openssl-1.1.1w.tar.gz
+tar xzf openssl-1.1.1w.tar.gz
+cd openssl-1.1.1w
+
+./Configure mingw --cross-compile-prefix=${MINGW_PREFIX}- --prefix=${DEPSDIR}
+make -j$(nproc)
+make install_sw
+cd ..
+
+
+Berkeley DB
+-----------
+
+wget https://download.oracle.com/berkeley-db/db-5.3.28.NC.tar.gz
+tar xzf db-5.3.28.NC.tar.gz
+cd db-5.3.28.NC/build_unix
+
+../dist/configure \
+    --host=${MINGW_PREFIX} \
+    --prefix=${DEPSDIR} \
+    --enable-cxx \
+    --disable-shared
+make -j$(nproc)
+make install
+cd ../..
+
+
+Boost
+-----
+
+wget https://boostorg.jfrog.io/artifactory/main/release/1.83.0/source/boost_1_83_0.tar.gz
+tar xzf boost_1_83_0.tar.gz
+cd boost_1_83_0
+
+cat > user-config.jam <<EOF
+using gcc : mingw : ${CXX} ;
+EOF
+
+./bootstrap.sh
+./b2 \
+    --user-config=user-config.jam \
+    toolset=gcc-mingw \
+    target-os=windows \
+    threading=multi \
+    link=static \
+    runtime-link=static \
+    --prefix=${DEPSDIR} \
+    --layout=system \
+    --with-system \
+    --with-filesystem \
+    --with-program_options \
+    --with-thread \
+    --with-chrono \
+    install
+cd ..
+
+
+miniupnpc (optional, for UPnP support)
+--------------------------------------
+
+wget https://miniupnp.tuxfamily.org/files/miniupnpc-2.2.6.tar.gz
+tar xzf miniupnpc-2.2.6.tar.gz
+cd miniupnpc-2.2.6
+
+make -f Makefile.mingw CC=${CC} AR=${AR} \
+    CFLAGS="-I${DEPSDIR}/include" \
+    LDFLAGS="-L${DEPSDIR}/lib"
+cp libminiupnpc.a ${DEPSDIR}/lib/
+cp *.h ${DEPSDIR}/include/miniupnpc/
+cd ..
+
+
+3. Clone InfiniteRicks
+----------------------
+
+git clone https://github.com/Coindev400/InfiniteRicks.git
+cd InfiniteRicks
+
+
+4. Build the Windows CLI daemon (InfiniteRicksd.exe)
+------------------------------------------------------
+
+Build LevelDB for Windows:
+
+cd src/leveldb
+make clean
+CC=${CC} CXX=${CXX} TARGET_OS=OS_WINDOWS_CROSSCOMPILE \
+    make libleveldb.a libmemenv.a
+cd ..
+
+Build the daemon:
+
+make -f makefile.linux-mingw DEPSDIR=${DEPSDIR} USE_UPNP=1
+
+The output binary is:
+
+src/InfiniteRicksd.exe
+
+Copy it to a Windows machine and run from cmd.exe:
+
+InfiniteRicksd.exe --help
+
+
+5. Build the Windows GUI wallet (InfiniteRicks-qt.exe)
+------------------------------------------------------
+
+The GUI requires Qt built for MinGW. The easiest way on Ubuntu 22.04 is MXE
+(M Cross Environment).
+
+Install MXE
+~~~~~~~~~~~
+
+cd ~/infinite-ricks-win
+git clone https://github.com/mxe/mxe.git
+cd mxe
+
+# Build Qt5 and required tools (this can take a long time)
+make qtbase -j$(nproc)
+
+Add MXE to PATH:
+
+export MXE_PATH=~/infinite-ricks-win/mxe
+export PATH=${MXE_PATH}/usr/bin:${PATH}
+
+
+Configure dependency paths for qmake
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+export BOOST_INCLUDE_PATH=${DEPSDIR}/include
+export BOOST_LIB_PATH=${DEPSDIR}/lib
+export BDB_INCLUDE_PATH=${DEPSDIR}/include
+export BDB_LIB_PATH=${DEPSDIR}/lib
+export OPENSSL_INCLUDE_PATH=${DEPSDIR}/include
+export OPENSSL_LIB_PATH=${DEPSDIR}/lib
+export MINIUPNPC_INCLUDE_PATH=${DEPSDIR}/include/miniupnpc
+export MINIUPNPC_LIB_PATH=${DEPSDIR}/lib
+
+
+Build LevelDB (if not already built in step 4)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+cd InfiniteRicks/src/leveldb
+make clean
+CC=${MXE_PATH}/usr/bin/i686-w64-mingw32.static-gcc \
+CXX=${MXE_PATH}/usr/bin/i686-w64-mingw32.static-g++ \
+TARGET_OS=OS_WINDOWS_CROSSCOMPILE \
+make libleveldb.a libmemenv.a
+cd ../..
+
+
+Cross-compile the Qt wallet
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+cd InfiniteRicks
+
+# 32-bit Windows GUI
+${MXE_PATH}/usr/bin/i686-w64-mingw32.static-qmake \
+    -spec win32-g++ \
+    RELEASE=1 \
+    USE_UPNP=1 \
+    BOOST_INCLUDE_PATH=${BOOST_INCLUDE_PATH} \
+    BOOST_LIB_PATH=${BOOST_LIB_PATH} \
+    BDB_INCLUDE_PATH=${BDB_INCLUDE_PATH} \
+    BDB_LIB_PATH=${BDB_LIB_PATH} \
+    OPENSSL_INCLUDE_PATH=${OPENSSL_INCLUDE_PATH} \
+    OPENSSL_LIB_PATH=${OPENSSL_LIB_PATH} \
+    MINIUPNPC_INCLUDE_PATH=${MINIUPNPC_INCLUDE_PATH} \
+    MINIUPNPC_LIB_PATH=${MINIUPNPC_LIB_PATH} \
+    InfiniteRicks-qt.pro
+
+make -j$(nproc)
+
+The output binary is:
+
+release/InfiniteRicks-qt.exe
+
+Copy InfiniteRicks-qt.exe to Windows together with the required Qt DLLs from:
+
+${MXE_PATH}/usr/i686-w64-mingw32.static/qt5/bin/
+
+
+6. Deploying to Windows
+-----------------------
+
+CLI daemon
+~~~~~~~~~~
+
+Copy only:
+
+  InfiniteRicksd.exe
+
+Create the config file on Windows:
+
+  %APPDATA%\InfiniteRicks\InfiniteRicks.conf
+
+Example:
+
+  daemon=1
+  server=1
+  rpcuser=user
+  rpcpassword=strongpassword
+
+
+GUI wallet
+~~~~~~~~~~
+
+Copy to the same folder:
+
+  InfiniteRicks-qt.exe
+  Qt5Core.dll
+  Qt5Gui.dll
+  Qt5Widgets.dll
+  libgcc_s_dw2-1.dll
+  libstdc++-6.dll
+  libwinpthread-1.dll
+
+If you used MXE static Qt, fewer DLLs are required.
+
+The wallet data directory on Windows is:
+
+  %APPDATA%\InfiniteRicks\
+
+
+7. Common problems
+------------------
+
+Boost placeholders (_1, _2) not found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use a recent source tree with the Qt compatibility fixes, or rebuild after:
+
+  git pull
+
+The project uses boost::placeholders::_1 explicitly in the Qt model files.
+
+
+OpenSSL / BDB / Boost not found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Verify DEPSDIR contains:
+
+  include/
+  lib/libssl.a
+  lib/libcrypto.a
+  lib/libdb_cxx.a
+  lib/libboost_system.a
+
+Pass DEPSDIR explicitly to make:
+
+  make -f makefile.linux-mingw DEPSDIR=/usr/i686-w64-mingw32
+
+
+LevelDB permission denied
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+chmod +x src/leveldb/build_detect_platform
+chmod +x share/genbuild.sh
+
+
+Qt cross-compile fails
+~~~~~~~~~~~~~~~~~~~~~~
+
+Confirm MXE qmake is used:
+
+  which i686-w64-mingw32.static-qmake
+
+Do not use the native Linux qmake for Windows builds.
+
+
+8. Quick reference
+------------------
+
+CLI (from InfiniteRicks/src):
+
+  make -f makefile.linux-mingw DEPSDIR=${DEPSDIR}
+
+GUI (from InfiniteRicks root, with MXE):
+
+  i686-w64-mingw32.static-qmake -spec win32-g++ RELEASE=1 InfiniteRicks-qt.pro
+  make
