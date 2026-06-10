@@ -9,6 +9,19 @@ This guide explains how to build Windows executables from Ubuntu 22.04:
 Both targets are cross-compiled with MinGW-w64. The GUI build also requires
 Qt libraries compiled for Windows.
 
+Quick start (recommended)
+-------------------------
+
+From the repository root:
+
+  chmod +x compile-windows.sh
+  ./compile-windows.sh
+
+This installs missing packages, builds MinGW dependencies, and produces
+64-bit Windows binaries in ./windows-build/. Use --cli-only or --gui-only
+to build a single target. 32-bit Windows (i686) is not supported because
+the codebase uses GCC __int128.
+
 
 Overview
 --------

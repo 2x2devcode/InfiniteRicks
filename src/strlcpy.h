@@ -19,9 +19,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 38)
+#ifndef _WIN32
+#if defined(__GLIBC__) && defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 38)
 // glibc 2.38+ provides strlcpy/strlcat via string.h
-#else
+#define BITCOIN_HAVE_GLIBC_STRLCPY 1
+#endif
+#endif
+
+#ifndef BITCOIN_HAVE_GLIBC_STRLCPY
 
 /*
  * Copy src to string dst of size siz.  At most siz-1 characters
@@ -92,5 +97,5 @@ inline size_t strlcat(char *dst, const char *src, size_t siz)
     return(dlen + (s - src)); /* count does not include NUL */
 }
 
-#endif // !glibc 2.38+
+#endif // !BITCOIN_HAVE_GLIBC_STRLCPY
 #endif // BITCOIN_STRLCPY_H
