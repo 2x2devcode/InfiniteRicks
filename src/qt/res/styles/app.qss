@@ -1,0 +1,174 @@
+/* InfiniteRicks — lightweight minimalist theme (single shared stylesheet). */
+
+QWidget {
+    background-color: #f4f5f7;
+    color: #1a1d21;
+    font-size: 9pt;
+}
+
+QMainWindow::separator {
+    background: #e2e5ea;
+    width: 1px;
+    height: 1px;
+}
+
+QToolBar {
+    background: #ffffff;
+    border: none;
+    border-bottom: 1px solid #e2e5ea;
+    spacing: 4px;
+    padding: 4px 6px;
+}
+
+QToolButton {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 8px;
+    color: #3d4450;
+}
+
+QToolButton:hover {
+    background: #eef1f5;
+}
+
+QToolButton:checked {
+    background: #e3e8f0;
+    color: #0f62fe;
+}
+
+QStatusBar {
+    background: #ffffff;
+    border-top: 1px solid #e2e5ea;
+}
+
+QStatusBar QLabel {
+    padding: 0 4px;
+}
+
+QFrame#frame, QFrame#frame_2 {
+    background: #ffffff;
+    border: 1px solid #e2e5ea;
+    border-radius: 8px;
+}
+
+QFrame {
+    border-radius: 6px;
+}
+
+QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background: #ffffff;
+    border: 1px solid #d0d5dd;
+    border-radius: 6px;
+    padding: 4px 6px;
+    min-height: 1.2em;
+}
+
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus,
+QDoubleSpinBox:focus, QComboBox:focus {
+    border-color: #6b9fff;
+}
+
+QPushButton {
+    background: #ffffff;
+    border: 1px solid #d0d5dd;
+    border-radius: 6px;
+    padding: 5px 12px;
+    min-height: 1.2em;
+}
+
+QPushButton:hover {
+    background: #f0f3f8;
+    border-color: #b8c0cc;
+}
+
+QPushButton:pressed {
+    background: #e6ebf2;
+}
+
+QPushButton:default {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+}
+
+QPushButton:default:hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+}
+
+QTableView, QListView, QTreeView {
+    background: #ffffff;
+    border: 1px solid #e2e5ea;
+    border-radius: 6px;
+    alternate-background-color: #f8f9fb;
+    gridline-color: #eef0f3;
+    selection-background-color: #dbeafe;
+    selection-color: #1a1d21;
+}
+
+QHeaderView::section {
+    background: #f8f9fb;
+    border: none;
+    border-bottom: 1px solid #e2e5ea;
+    padding: 4px 6px;
+    font-weight: 600;
+}
+
+QTabWidget::pane {
+    border: 1px solid #e2e5ea;
+    border-radius: 6px;
+    background: #ffffff;
+    top: -1px;
+}
+
+QTabBar::tab {
+    background: #eef1f5;
+    border: 1px solid #e2e5ea;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 6px 12px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background: #ffffff;
+}
+
+QLabel#labelWalletStatus, QLabel#labelTransactionsStatus {
+    color: #c2410c;
+    font-weight: normal;
+}
+
+QListView#listTransactions {
+    background: transparent;
+    border: none;
+}
+
+QProgressBar {
+    border: 1px solid #e2e5ea;
+    border-radius: 4px;
+    background: #ffffff;
+    text-align: center;
+    max-height: 16px;
+}
+
+QProgressBar::chunk {
+    background: #2563eb;
+    border-radius: 3px;
+}
+
+QMenuBar {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e5ea;
+}
+
+QMenu {
+    background: #ffffff;
+    border: 1px solid #e2e5ea;
+}
+
+QMenu::item:selected {
+    background: #eef1f5;
+}

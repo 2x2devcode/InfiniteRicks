@@ -19,6 +19,7 @@
 #include <QTranslator>
 #include <QSplashScreen>
 #include <QLibraryInfo>
+#include <QFile>
 
 #if defined(BITCOIN_NEED_QT_PLUGINS) && !defined(_BITCOIN_QT_PLUGINS_INCLUDED)
 #define _BITCOIN_QT_PLUGINS_INCLUDED
@@ -124,6 +125,13 @@ int main(int argc, char *argv[])
 
     Q_INIT_RESOURCE(bitcoin);
     QApplication app(argc, argv);
+    QApplication::setStyle("Fusion");
+
+    QFile styleFile(":/styles/app");
+    if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
+        app.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
+        styleFile.close();
+    }
 
     // Install global event filter that makes sure that long tooltips can be word-wrapped
     app.installEventFilter(new GUIUtil::ToolTipToRichTextFilter(TOOLTIP_WRAP_THRESHOLD, &app));
