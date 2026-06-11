@@ -115,6 +115,7 @@ OverviewPage::OverviewPage(QWidget *parent) :
 
     // start with displaying the "out of sync" warnings
     showOutOfSyncWarning(true);
+    ui->frameSync->setVisible(false);
 }
 
 void OverviewPage::handleTransactionClicked(const QModelIndex &index)
@@ -198,4 +199,20 @@ void OverviewPage::showOutOfSyncWarning(bool fShow)
 {
     ui->labelWalletStatus->setVisible(fShow);
     ui->labelTransactionsStatus->setVisible(fShow);
+}
+
+void OverviewPage::updateSyncStatus(int count, int total, bool showProgress, const QString &statusText)
+{
+    ui->frameSync->setVisible(showProgress);
+    if (!showProgress)
+        return;
+
+    ui->labelSyncStatus->setText(statusText);
+    ui->progressBarSync->setMaximum(total > 0 ? total : 1);
+    ui->progressBarSync->setValue(count);
+    if (total > count) {
+        ui->progressBarSync->setFormat(tr("~%n block(s) remaining", "", total - count));
+    } else {
+        ui->progressBarSync->setFormat(QString());
+    }
 }
