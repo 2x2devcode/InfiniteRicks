@@ -372,8 +372,13 @@ re-run qmake after pulling updates — do not keep building inside an old
 build-win-qt-x86_64/ directory:
 
   cd /path/to/InfiniteRicks
-  rm -rf build-win-qt-x86_64 Makefile Makefile.Release Makefile.Debug .qmake.stash
+  rm -rf build-win-qt-x86_64 build-mingw-x86_64 build release
+  rm -f Makefile Makefile.Release Makefile.Debug .qmake.stash
   ./compile-windows.sh --gui-only --skip-mxe
+
+Never run make from inside build-win-qt-x86_64/. The compile command must show
+-std=gnu++14 and -include .../mingw-preinclude.h; if not, delete Makefile* and
+re-run ./compile-windows.sh.
 
 
 8. Quick reference
