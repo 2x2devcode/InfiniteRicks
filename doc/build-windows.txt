@@ -349,9 +349,31 @@ Qt cross-compile fails
 
 Confirm MXE qmake is used:
 
-  which i686-w64-mingw32.static-qmake
+  which x86_64-w64-mingw32.static-qmake-qt5
 
 Do not use the native Linux qmake for Windows builds.
+
+"Cannot run target compiler 'x86_64-w64-mingw32.static-g++'"
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+qmake probes the MXE compiler by name before reading QMAKE_CXX. Add MXE to PATH:
+
+  export MXE_PATH=~/.infinite-ricks/mingw-deps-x86_64/mxe
+  export PATH=$MXE_PATH/usr/bin:$PATH
+
+compile-windows.sh does this automatically. If building by hand, set PATH before qmake.
+
+"reference to 'byte' is ambiguous" (rpcndr.h / objidl.h)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+MXE GCC 11 + Qt pull in C++17 std::byte, which conflicts with Windows headers.
+InfiniteRicks-qt.pro forces GNU++14 and a MinGW preinclude header. You must
+re-run qmake after pulling updates — do not keep building inside an old
+build-win-qt-x86_64/ directory:
+
+  cd /path/to/InfiniteRicks
+  rm -rf build-win-qt-x86_64 Makefile Makefile.Release Makefile.Debug .qmake.stash
+  ./compile-windows.sh --gui-only --skip-mxe
 
 
 8. Quick reference

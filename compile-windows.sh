@@ -90,9 +90,10 @@ parse_args() {
 }
 
 resolve_paths() {
-    DEPS_DIR="${MINGW_DEPS_DIR:-$HOME/.infinite-ricks/mingw-deps-${ARCH}}"
-    MXE_DIR="${MXE_PATH:-$DEPS_DIR/mxe}"
-    SOURCES_DIR="${MINGW_SOURCES_DIR:-$DEPS_DIR/sources}"
+    DEPS_DIR_BASE="${MINGW_DEPS_DIR:-$HOME/.infinite-ricks/mingw-deps-${ARCH}}"
+    DEPS_DIR="$DEPS_DIR_BASE"
+    MXE_DIR="${MXE_PATH:-$DEPS_DIR_BASE/mxe}"
+    SOURCES_DIR="${MINGW_SOURCES_DIR:-$DEPS_DIR_BASE/sources}"
 }
 
 setup_toolchain() {
@@ -116,6 +117,8 @@ setup_toolchain() {
     export AR="${MINGW_PREFIX}-ar"
     export RANLIB="${MINGW_PREFIX}-ranlib"
     export STRIP="${MINGW_PREFIX}-strip"
+    MINGW_HOST="${MINGW_PREFIX}"
+    OPENSSL_CROSS_PREFIX="${MINGW_PREFIX}-"
 
     need_cmd "$CC"
     need_cmd "$CXX"
@@ -155,8 +158,10 @@ install_apt_packages() {
         lzip
         ruby
         libgdk-pixbuf2.0-bin
+        libpcre2-dev
         cmake
         ninja-build
+        qttools5-dev-tools
     )
 
     local missing=()
@@ -210,19 +215,11 @@ build_openssl() {
     pushd "$build_dir" >/dev/null
     # Configure applies --cross-compile-prefix; avoid exporting toolchain vars here.
     env -u CC -u CXX -u AR -u RANLIB ./Configure "$OPENSSL_TARGET" \
-        --cross-compile-prefix="${MINGW_PREFIX}-" \
+        --cross-compile-prefix="${OPENSSL_CROSS_PREFIX}" \
         --prefix="$DEPS_DIR" \
         no-shared no-tests
-    make -j"$JOBS" \
-        CC="${MINGW_PREFIX}-gcc" \
-        CXX="${MINGW_PREFIX}-g++" \
-        AR="${MINGW_PREFIX}-ar" \
-        RANLIB="${MINGW_PREFIX}-ranlib"
-    make install_sw \
-        CC="${MINGW_PREFIX}-gcc" \
-        CXX="${MINGW_PREFIX}-g++" \
-        AR="${MINGW_PREFIX}-ar" \
-        RANLIB="${MINGW_PREFIX}-ranlib"
+    make -j"$JOBS" CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
+    make install_sw CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
     popd >/dev/null
 }
 
@@ -286,15 +283,15 @@ build_berkeley_db() {
     log "Building Berkeley DB ${BDB_VERSION} for ${ARCH}"
     pushd "$src_dir/build_unix" >/dev/null
     env -u CC -u CXX -u AR -u RANLIB \
-        CC="${MINGW_PREFIX}-gcc" \
-        CXX="${MINGW_PREFIX}-g++" \
-        AR="${MINGW_PREFIX}-ar" \
-        RANLIB="${MINGW_PREFIX}-ranlib" \
+        CC="$CC" \
+        CXX="$CXX" \
+        AR="$AR" \
+        RANLIB="$RANLIB" \
         CFLAGS="$mingw_cflags" \
         CXXFLAGS="$mingw_cflags" \
         ../dist/configure \
             --build="$(gcc -dumpmachine)" \
-            --host="${MINGW_PREFIX}" \
+            --host="${MINGW_HOST}" \
             --prefix="$DEPS_DIR" \
             --enable-cxx \
             --disable-shared \
@@ -303,16 +300,8 @@ build_berkeley_db() {
     patch_berkeley_db_after_configure "$src_dir/build_unix"
     # Do not pass CFLAGS/CXXFLAGS to make: that replaces the generated flags
     # and drops -I../src (dbinc/win_db.h) from CPPFLAGS.
-    make -j"$JOBS" \
-        CC="${MINGW_PREFIX}-gcc" \
-        CXX="${MINGW_PREFIX}-g++" \
-        AR="${MINGW_PREFIX}-ar" \
-        RANLIB="${MINGW_PREFIX}-ranlib"
-    make install \
-        CC="${MINGW_PREFIX}-gcc" \
-        CXX="${MINGW_PREFIX}-g++" \
-        AR="${MINGW_PREFIX}-ar" \
-        RANLIB="${MINGW_PREFIX}-ranlib"
+    make -j"$JOBS" CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
+    make install CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
     popd >/dev/null
 }
 
@@ -372,9 +361,9 @@ build_zlib() {
     log "Building zlib ${ZLIB_VERSION} for ${ARCH}"
     pushd "$src_dir" >/dev/null
     env -u CC -u CXX -u AR -u RANLIB \
-        CC="${MINGW_PREFIX}-gcc" \
-        AR="${MINGW_PREFIX}-ar" \
-        RANLIB="${MINGW_PREFIX}-ranlib" \
+        CC="$CC" \
+        AR="$AR" \
+        RANLIB="$RANLIB" \
         ./configure --prefix="$DEPS_DIR" --static
     make -j"$JOBS" libz.a
     make install
@@ -424,6 +413,17 @@ build_leveldb() {
     popd >/dev/null
 }
 
+copy_cli_runtime_dlls() {
+    # Fallback: if winpthread was linked dynamically, ship the DLL beside the exe.
+    local mingw_lib="/usr/${MINGW_PREFIX}/lib"
+    local dll="$mingw_lib/libwinpthread-1.dll"
+    [[ -f "$dll" ]] || return 0
+    if x86_64-w64-mingw32-objdump -p "$OUTPUT_DIR/InfiniteRicksd.exe" 2>/dev/null | grep -qi 'libwinpthread-1.dll'; then
+        cp -f "$dll" "$OUTPUT_DIR/"
+        log "Copied libwinpthread-1.dll next to InfiniteRicksd.exe (runtime dependency)"
+    fi
+}
+
 build_cli() {
     log "Building InfiniteRicksd.exe"
     build_leveldb
@@ -436,7 +436,68 @@ build_cli() {
         USE_UPNP=1
     cp InfiniteRicksd.exe "$OUTPUT_DIR/"
     popd >/dev/null
+    copy_cli_runtime_dlls
     log "CLI binary: $OUTPUT_DIR/InfiniteRicksd.exe"
+}
+
+host_pkg_config_path() {
+    local paths=()
+    local triplet
+    triplet="$(gcc -dumpmachine 2>/dev/null || true)"
+    [[ -n "$triplet" && -d "/usr/lib/${triplet}/pkgconfig" ]] && paths+=("/usr/lib/${triplet}/pkgconfig")
+    [[ -d /usr/lib/pkgconfig ]] && paths+=("/usr/lib/pkgconfig")
+    [[ -d /usr/share/pkgconfig ]] && paths+=("/usr/share/pkgconfig")
+    local IFS=:
+    printf '%s' "${paths[*]}"
+}
+
+prefetch_glib_pcre2_for_mxe() {
+    local pcre2_tar="$MXE_DIR/pkg/pcre2-10.46.tar.bz2"
+    local primary="https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2"
+    local fallback="https://github.com/mesonbuild/wrapdb/releases/download/pcre2_10.46-1/pcre2-10.46.tar.bz2"
+    [[ -f "$pcre2_tar" ]] && return 0
+    mkdir -p "$MXE_DIR/pkg"
+    log "Downloading pcre2 10.46 for MXE glib (offline subproject)"
+    if ! curl -fL --retry 5 --retry-delay 10 -o "$pcre2_tar" "$primary"; then
+        curl -fL --retry 5 --retry-delay 10 -o "$pcre2_tar" "$fallback" || \
+            die "Could not download pcre2 for MXE glib. Check internet access to github.com."
+    fi
+}
+
+patch_mxe_glib_native_build() {
+    local glib_mk="$MXE_DIR/src/glib.mk"
+    [[ -f "$glib_mk" ]] || return 0
+    grep -q 'infinite-ricks-glib-pcre2-fix' "$glib_mk" && return 0
+
+    local host_pc
+    host_pc="$(host_pkg_config_path)"
+    python3 - "$glib_mk" "$host_pc" <<'PY'
+import sys
+path, host_pc = sys.argv[1], sys.argv[2]
+text = open(path, encoding="utf-8").read()
+needle = "    '$(MXE_MESON_NATIVE_WRAPPER)' \\\n        --buildtype=release \\\n        -Dtests=false \\"
+inject = f"""    # infinite-ricks-glib-pcre2-fix
+    test -f '$(SOURCE_DIR)/subprojects/pcre2-10.46/meson.build' || (mkdir -p '$(SOURCE_DIR)/subprojects' && tar xjf '$(PWD)/pkg/pcre2-10.46.tar.bz2' -C '$(SOURCE_DIR)/subprojects')
+    PKG_CONFIG_PATH='{host_pc}:$(PREFIX)/$(BUILD)/lib/pkgconfig' \\
+    '$(MXE_MESON_NATIVE_WRAPPER)' \\
+        --buildtype=release \\
+        -Dtests=false \\"""
+if needle not in text:
+    raise SystemExit(f"Could not patch {path}: MXE glib.mk layout changed")
+open(path, "w", encoding="utf-8").write(text.replace(needle, inject, 1))
+PY
+    log "Patched MXE glib build to use local/system pcre2"
+}
+
+ensure_mxe_host_ninja() {
+    local host_bin="$MXE_DIR/usr/x86_64-pc-linux-gnu/bin"
+    local host_installed="$MXE_DIR/usr/x86_64-pc-linux-gnu/installed/ninja"
+    [[ -f "$host_installed" ]] && return 0
+    command -v ninja >/dev/null 2>&1 || return 0
+    log "Using system ninja for MXE host tools"
+    mkdir -p "$host_bin"
+    ln -sf "$(command -v ninja)" "$host_bin/ninja"
+    touch "$host_installed"
 }
 
 ensure_mxe() {
@@ -449,6 +510,8 @@ ensure_mxe() {
       return 0
   fi
 
+  [[ "$BUILD_MXE_QT" -eq 1 ]] || die "MXE Qt not found at $MXE_DIR (build qtbase or omit --skip-mxe)"
+
   log "MXE/Qt for MinGW not found; setting up MXE (this can take a long time)"
   if [[ ! -d "$MXE_DIR/.git" ]]; then
       git clone https://github.com/mxe/mxe.git "$MXE_DIR"
@@ -460,32 +523,105 @@ MXE_TARGETS := ${MXE_TARGET}
 JOBS := ${JOBS}
 EOF
 
+  # Some minimal Ubuntu images lack default -lstdc++ search paths for MXE host tools.
+  export LIBRARY_PATH="/usr/lib/gcc/$(gcc -dumpmachine)/$(gcc -dumpversion)${LIBRARY_PATH:+:$LIBRARY_PATH}"
+  ensure_mxe_host_ninja
+  prefetch_glib_pcre2_for_mxe
+  patch_mxe_glib_native_build
+
   pushd "$MXE_DIR" >/dev/null
+  # Host glib is required before Qt; meson may fail to download pcre2 from wrapdb.
+  if [[ ! -f "usr/x86_64-pc-linux-gnu/installed/glib" ]]; then
+      log "Building MXE host glib (one-time step before Qt)..."
+      rm -rf "tmp-glib-x86_64-pc-linux-gnu"
+      export PKG_CONFIG_PATH="$(host_pkg_config_path):${PKG_CONFIG_PATH:-}"
+      make glib -j"$JOBS" MXE_TARGETS=x86_64-pc-linux-gnu || \
+          die "MXE host glib failed. Install libpcre2-dev and ensure github.com is reachable."
+  fi
   make qtbase -j"$JOBS" MXE_TARGETS="${MXE_TARGET}"
   popd >/dev/null
 
   [[ -x "$qmake_bin" ]] || die "MXE qmake not found after build: $qmake_bin"
 }
 
+verify_mxe_toolchain() {
+    local mxe_bin="$MXE_DIR/usr/bin"
+    local cxx="$mxe_bin/${MXE_TARGET}-g++"
+    [[ -x "$cxx" ]] || die "MXE compiler not found: $cxx (run ./compile-windows.sh and wait for qtbase)"
+    if ! "$cxx" -dumpversion >/dev/null 2>&1; then
+        die "MXE compiler cannot run: $cxx — check that MXE gcc/qtbase finished building"
+    fi
+    # qmake's win32-g++ spec probes ${MXE_TARGET}-g++ by name (must be on PATH).
+    if ! command -v "${MXE_TARGET}-g++" >/dev/null 2>&1; then
+        die "MXE compiler is not on PATH: ${MXE_TARGET}-g++ — qmake will fail with 'Cannot run target compiler'"
+    fi
+}
+
+setup_mxe_toolchain_env() {
+    local mxe_bin="$MXE_DIR/usr/bin"
+    local mxe_qt_bin="$MXE_DIR/usr/${MXE_TARGET}/qt5/bin"
+    export PATH="$mxe_bin:$mxe_qt_bin:$PATH"
+    export LIBRARY_PATH="/usr/lib/gcc/$(gcc -dumpmachine)/$(gcc -dumpversion)${LIBRARY_PATH:+:$LIBRARY_PATH}"
+}
+
+use_mxe_compiler_for_deps() {
+    # MXE Qt must link with the MXE toolchain; match Boost/BDB/OpenSSL to the same compiler.
+    local mxe_bin="$MXE_DIR/usr/bin"
+    export CC="${mxe_bin}/${MXE_TARGET}-gcc"
+    export CXX="${mxe_bin}/${MXE_TARGET}-g++"
+    export AR="${mxe_bin}/${MXE_TARGET}-ar"
+    export RANLIB="${mxe_bin}/${MXE_TARGET}-ranlib"
+    export STRIP="${mxe_bin}/${MXE_TARGET}-strip"
+    MINGW_HOST="${MXE_TARGET}"
+    OPENSSL_CROSS_PREFIX="${MXE_TARGET}-"
+    DEPS_DIR="${DEPS_DIR_BASE}-mxe"
+    mkdir -p "$DEPS_DIR/include" "$DEPS_DIR/lib"
+}
+
+host_lrelease() {
+    if command -v lrelease >/dev/null 2>&1; then
+        command -v lrelease
+        return 0
+    fi
+    die "Host lrelease not found (install qttools5-dev-tools). MXE does not ship a Linux lrelease binary."
+}
+
 build_gui() {
     log "Building InfiniteRicks-qt.exe"
     ensure_mxe
+    verify_mxe_toolchain
+    setup_mxe_toolchain_env
 
     local qmake_bin="$MXE_DIR/usr/bin/${MXE_TARGET}-qmake-qt5"
+    local mxe_bin="$MXE_DIR/usr/bin"
     local mxe_qt_bin="$MXE_DIR/usr/${MXE_TARGET}/qt5/bin"
-    local gui_build_dir="$REPO_ROOT/build-win-qt-${ARCH}"
+    local gui_obj_dir="build-mingw-${ARCH}"
+    local legacy_gui_dir="$REPO_ROOT/build-win-qt-${ARCH}"
 
     build_leveldb
 
-    rm -rf "$gui_build_dir"
-    mkdir -p "$gui_build_dir"
+    # qmake from a subdir breaks .moc paths and may omit MinGW C++14 byte fixes.
+    pushd "$REPO_ROOT" >/dev/null
+    if [[ -f "$legacy_gui_dir/Makefile" || -f "$legacy_gui_dir/Makefile.Release" ]]; then
+        log "Removing obsolete $legacy_gui_dir (build from repo root via ./compile-windows.sh)"
+        rm -rf "$legacy_gui_dir"
+    fi
+    rm -f Makefile Makefile.Debug Makefile.Release .qmake.stash
+    rm -rf "$gui_obj_dir" build release
 
-    pushd "$gui_build_dir" >/dev/null
-  "$qmake_bin" \
+    local host_lrelease_bin
+    host_lrelease_bin="$(host_lrelease)"
+
+    # qmake tests ${MXE_TARGET}-g++ before applying QMAKE_CXX; MXE usr/bin must be on PATH.
+    env PATH="$mxe_bin:$mxe_qt_bin:$PATH" \
+        "$qmake_bin" \
         -spec win32-g++ \
-        "$REPO_ROOT/InfiniteRicks-qt.pro" \
+        InfiniteRicks-qt.pro \
         RELEASE=1 \
         USE_UPNP=1 \
+        OBJECTS_DIR="$gui_obj_dir" \
+        MOC_DIR="$gui_obj_dir" \
+        UI_DIR="$gui_obj_dir" \
         BOOST_LIB_SUFFIX= \
         BOOST_THREAD_LIB_SUFFIX= \
         BOOST_INCLUDE_PATH="$DEPS_DIR/include" \
@@ -495,9 +631,16 @@ build_gui() {
         OPENSSL_INCLUDE_PATH="$DEPS_DIR/include" \
         OPENSSL_LIB_PATH="$DEPS_DIR/lib" \
         MINIUPNPC_INCLUDE_PATH="$DEPS_DIR/include/miniupnpc" \
-        MINIUPNPC_LIB_PATH="$DEPS_DIR/lib"
+        MINIUPNPC_LIB_PATH="$DEPS_DIR/lib" \
+        QMAKE_CC="$mxe_bin/${MXE_TARGET}-gcc" \
+        QMAKE_CXX="$mxe_bin/${MXE_TARGET}-g++" \
+        QMAKE_LINK="$mxe_bin/${MXE_TARGET}-g++" \
+        QMAKE_LINK_C="$mxe_bin/${MXE_TARGET}-gcc" \
+        QMAKE_RC="$mxe_bin/${MXE_TARGET}-windres" \
+        QMAKE_RANLIB="$mxe_bin/${MXE_TARGET}-ranlib" \
+        QMAKE_LRELEASE="$host_lrelease_bin"
 
-    make -j"$JOBS"
+    env PATH="$mxe_bin:$mxe_qt_bin:$PATH" make -j"$JOBS"
 
     local exe_path=""
     if [[ -f release/InfiniteRicks-qt.exe ]]; then
@@ -538,6 +681,14 @@ main() {
     install_apt_packages
     prepare_dirs
     setup_toolchain
+
+    if [[ "$BUILD_GUI" -eq 1 ]]; then
+        ensure_mxe
+        setup_mxe_toolchain_env
+        use_mxe_compiler_for_deps
+        log "GUI build uses MXE toolchain; dependencies in $DEPS_DIR"
+    fi
+
     build_mingw_dependencies
 
     if [[ "$BUILD_CLI" -eq 0 && "$BUILD_GUI" -eq 0 ]]; then
