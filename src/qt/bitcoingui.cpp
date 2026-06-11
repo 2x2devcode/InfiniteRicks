@@ -25,6 +25,7 @@
 #include "notificator.h"
 #include "guiutil.h"
 #include "rpcconsole.h"
+#include "watermarkwidget.h"
 #include "wallet.h"
 
 #ifdef Q_OS_MAC
@@ -77,7 +78,7 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     rpcConsole(0),
     nWeight(0)
 {
-    resize(960, 600);
+    resize(1024, 640);
     setWindowTitle(tr("InfiniteRicks") + " - " + tr("Wallet"));
 #ifndef Q_OS_MAC
     qApp->setWindowIcon(QIcon(":icons/bitcoin"));
@@ -118,13 +119,14 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
 
     signVerifyMessageDialog = new SignVerifyMessageDialog(this);
 
-    centralWidget = new QStackedWidget(this);
+    WatermarkWidget *contentArea = new WatermarkWidget(this);
+    centralWidget = contentArea->stackedWidget();
     centralWidget->addWidget(overviewPage);
     centralWidget->addWidget(transactionsPage);
     centralWidget->addWidget(addressBookPage);
     centralWidget->addWidget(receiveCoinsPage);
     centralWidget->addWidget(sendCoinsPage);
-    setCentralWidget(centralWidget);
+    setCentralWidget(contentArea);
 
     // Create status bar
     statusBar();
@@ -171,7 +173,7 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     QString curStyle = qApp->style()->metaObject()->className();
     if(curStyle == "QWindowsStyle" || curStyle == "QWindowsXPStyle")
     {
-        progressBar->setStyleSheet("QProgressBar { background-color: #e8e8e8; border: 1px solid grey; border-radius: 7px; padding: 1px; text-align: center; } QProgressBar::chunk { background: QLinearGradient(x1: 0, y1: 0, x2: 1, y2: 0, stop: 0 #FF8000, stop: 1 orange); border-radius: 7px; margin: 0px; }");
+        progressBar->setStyleSheet("QProgressBar { background-color: #e8e8e8; border: 1px solid grey; border-radius: 7px; padding: 1px; text-align: center; } QProgressBar::chunk { background: QLinearGradient(x1: 0, y1: 0, x2: 1, y2: 0, stop: 0 #4d9a3e, stop: 1 #5eae4c); border-radius: 7px; margin: 0px; }");
     }
 
     statusBar()->addWidget(progressBarLabel);
@@ -335,11 +337,13 @@ void BitcoinGUI::createMenuBar()
 
 void BitcoinGUI::createToolBars()
 {
-    QToolBar *toolbar = addToolBar(tr("Tabs toolbar"));
-    toolbar->setObjectName("mainToolbar");
+    QToolBar *toolbar = new QToolBar(tr("Tabs toolbar"), this);
+    toolbar->setObjectName("sidebar");
     toolbar->setMovable(false);
-    toolbar->setIconSize(QSize(20, 20));
+    toolbar->setFloatable(false);
+    toolbar->setIconSize(QSize(28, 28));
     toolbar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    addToolBar(Qt::LeftToolBarArea, toolbar);
     toolbar->addAction(overviewAction);
     toolbar->addAction(sendCoinsAction);
     toolbar->addAction(receiveCoinsAction);
@@ -506,6 +510,7 @@ void BitcoinGUI::setNumBlocks(int count, int nTotalBlocks)
     {
         progressBarLabel->setVisible(false);
         progressBar->setVisible(false);
+        overviewPage->updateSyncStatus(0, 0, false, QString());
 
         return;
     }
@@ -526,6 +531,7 @@ void BitcoinGUI::setNumBlocks(int count, int nTotalBlocks)
             progressBar->setMaximum(nTotalBlocks);
             progressBar->setValue(count);
             progressBar->setVisible(true);
+            overviewPage->updateSyncStatus(count, nTotalBlocks, true, tr("Synchronizing with network..."));
         }
 
         tooltip = tr("Downloaded %1 of %2 blocks of transaction history (%3% done).").arg(count).arg(nTotalBlocks).arg(nPercentageDone, 0, 'f', 2);
@@ -536,6 +542,7 @@ void BitcoinGUI::setNumBlocks(int count, int nTotalBlocks)
             progressBarLabel->setVisible(false);
 
         progressBar->setVisible(false);
+        overviewPage->updateSyncStatus(count, nTotalBlocks, false, QString());
         tooltip = tr("Downloaded %1 blocks of transaction history.").arg(count);
     }
 

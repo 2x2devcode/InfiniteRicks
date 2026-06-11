@@ -25,6 +25,7 @@ public:
 
     void setModel(WalletModel *model);
     void showOutOfSyncWarning(bool fShow);
+    void updateSyncStatus(int count, int total, bool showProgress, const QString &statusText);
 
 public slots:
     void setBalance(__int128 balance, __int128 stake, __int128 unconfirmedBalance, __int128 immatureBalance);

@@ -20,6 +20,10 @@ static const int STATUSBAR_ICONSIZE = 16;
 /* Transaction list -- bare address (without label) */
 #define COLOR_BAREADDRESS QColor(107, 114, 128)
 
+/* Brand accent — Matrix green (RGB 94, 174, 76) */
+#define COLOR_BRAND QColor(94, 174, 76)
+#define COLOR_BRAND_DARK QColor(77, 154, 62)
+
 /* Overview recent transactions — keep icons small to save memory while painting */
 static const int OVERVIEW_TX_ICON_SIZE = 28;
 
