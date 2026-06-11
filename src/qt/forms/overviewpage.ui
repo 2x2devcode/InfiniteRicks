@@ -22,7 +22,7 @@
         <enum>QFrame::StyledPanel</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Raised</enum>
+        <enum>QFrame::Plain</enum>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_4">
         <item>
@@ -45,9 +45,6 @@
            <widget class="QLabel" name="labelWalletStatus">
             <property name="toolTip">
              <string>The displayed information may be out of date. Your wallet automatically synchronizes with the InfiniteRicks network after a connection is established, but this process has not completed yet.</string>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">QLabel { color: red; }</string>
             </property>
             <property name="text">
              <string notr="true">(out of sync)</string>
@@ -260,7 +257,7 @@
         <enum>QFrame::StyledPanel</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Raised</enum>
+        <enum>QFrame::Plain</enum>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout">
         <item>
@@ -276,9 +273,6 @@
            <widget class="QLabel" name="labelTransactionsStatus">
             <property name="toolTip">
              <string>The displayed information may be out of date. Your wallet automatically synchronizes with the InfiniteRicks network after a connection is established, but this process has not completed yet.</string>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">QLabel { color: red; }</string>
             </property>
             <property name="text">
              <string notr="true">(out of sync)</string>
@@ -305,9 +299,6 @@
         </item>
         <item>
          <widget class="QListView" name="listTransactions">
-          <property name="styleSheet">
-           <string notr="true">QListView { background: transparent; }</string>
-          </property>
           <property name="frameShape">
            <enum>QFrame::NoFrame</enum>
           </property>

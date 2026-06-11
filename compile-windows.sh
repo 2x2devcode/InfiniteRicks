@@ -602,8 +602,8 @@ build_gui() {
 
     # qmake from a subdir breaks .moc paths and may omit MinGW C++14 byte fixes.
     pushd "$REPO_ROOT" >/dev/null
-    if [[ -f "$legacy_gui_dir/Makefile" || -f "$legacy_gui_dir/Makefile.Release" ]]; then
-        log "Removing obsolete $legacy_gui_dir (build from repo root via ./compile-windows.sh)"
+    if [[ -d "$legacy_gui_dir" ]]; then
+        log "Removing obsolete $legacy_gui_dir (do not build inside this directory)"
         rm -rf "$legacy_gui_dir"
     fi
     rm -f Makefile Makefile.Debug Makefile.Release .qmake.stash
@@ -638,7 +638,10 @@ build_gui() {
         QMAKE_LINK_C="$mxe_bin/${MXE_TARGET}-gcc" \
         QMAKE_RC="$mxe_bin/${MXE_TARGET}-windres" \
         QMAKE_RANLIB="$mxe_bin/${MXE_TARGET}-ranlib" \
-        QMAKE_LRELEASE="$host_lrelease_bin"
+        QMAKE_LRELEASE="$host_lrelease_bin" \
+        "QMAKE_CXXFLAGS+=-std=gnu++14 -include $REPO_ROOT/src/qt/mingw-preinclude.h" \
+        "QMAKE_CXXFLAGS_RELEASE+=-std=gnu++14" \
+        "QMAKE_CXXFLAGS_DEBUG+=-std=gnu++14"
 
     env PATH="$mxe_bin:$mxe_qt_bin:$PATH" make -j"$JOBS"
 

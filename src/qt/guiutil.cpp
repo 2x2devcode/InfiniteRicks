@@ -1,11 +1,23 @@
 #ifdef WIN32
+#ifdef _WIN32_WINNT
+#undef _WIN32_WINNT
+#endif
+#define _WIN32_WINNT 0x0501
+#ifdef _WIN32_IE
+#undef _WIN32_IE
+#endif
+#define _WIN32_IE 0x0501
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+/* Must be before guiutil.h (Qt pulls C++17 <cstddef>/std::byte). */
 #include <windows.h>
+#include <shlwapi.h>
+#include <shlobj.h>
+#include <shellapi.h>
 #endif
 
 #include "guiutil.h"
@@ -31,24 +43,6 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
-
-#ifdef WIN32
-#ifdef _WIN32_WINNT
-#undef _WIN32_WINNT
-#endif
-#define _WIN32_WINNT 0x0501
-#ifdef _WIN32_IE
-#undef _WIN32_IE
-#endif
-#define _WIN32_IE 0x0501
-#define WIN32_LEAN_AND_MEAN 1
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include "shlwapi.h"
-#include "shlobj.h"
-#include "shellapi.h"
-#endif
 
 namespace GUIUtil {
 
