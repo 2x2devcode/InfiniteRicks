@@ -595,14 +595,19 @@ build_gui() {
     local qmake_bin="$MXE_DIR/usr/bin/${MXE_TARGET}-qmake-qt5"
     local mxe_bin="$MXE_DIR/usr/bin"
     local mxe_qt_bin="$MXE_DIR/usr/${MXE_TARGET}/qt5/bin"
-    local gui_obj_dir="build-win-qt-${ARCH}"
+    local gui_obj_dir="build-mingw-${ARCH}"
+    local legacy_gui_dir="$REPO_ROOT/build-win-qt-${ARCH}"
 
     build_leveldb
 
-    # qmake from a subdir breaks .moc include paths; build in-tree with a dedicated OBJECTS_DIR.
+    # qmake from a subdir breaks .moc paths and may omit MinGW C++14 byte fixes.
     pushd "$REPO_ROOT" >/dev/null
+    if [[ -f "$legacy_gui_dir/Makefile" || -f "$legacy_gui_dir/Makefile.Release" ]]; then
+        log "Removing obsolete $legacy_gui_dir (build from repo root via ./compile-windows.sh)"
+        rm -rf "$legacy_gui_dir"
+    fi
     rm -f Makefile Makefile.Debug Makefile.Release .qmake.stash
-    rm -rf "$gui_obj_dir"
+    rm -rf "$gui_obj_dir" build release
 
     local host_lrelease_bin
     host_lrelease_bin="$(host_lrelease)"

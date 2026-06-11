@@ -363,11 +363,17 @@ qmake probes the MXE compiler by name before reading QMAKE_CXX. Add MXE to PATH:
 
 compile-windows.sh does this automatically. If building by hand, set PATH before qmake.
 
-"reference to 'byte' is ambiguous" (rpcndr.h)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+"reference to 'byte' is ambiguous" (rpcndr.h / objidl.h)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Fixed in InfiniteRicks-qt.pro by compiling the GUI with -std=gnu++14. Update the
-tree and rebuild if you see this with newer MinGW/GCC.
+MXE GCC 11 + Qt pull in C++17 std::byte, which conflicts with Windows headers.
+InfiniteRicks-qt.pro forces GNU++14 and a MinGW preinclude header. You must
+re-run qmake after pulling updates — do not keep building inside an old
+build-win-qt-x86_64/ directory:
+
+  cd /path/to/InfiniteRicks
+  rm -rf build-win-qt-x86_64 Makefile Makefile.Release Makefile.Debug .qmake.stash
+  ./compile-windows.sh --gui-only --skip-mxe
 
 
 8. Quick reference

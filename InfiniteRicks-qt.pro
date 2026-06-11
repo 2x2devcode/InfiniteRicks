@@ -10,9 +10,6 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 lessThan(QT_MAJOR_VERSION, 5): CONFIG += static
 QMAKE_CXXFLAGS = -fpermissive
 
-# MinGW Windows headers typedef 'byte'; GCC 11+ defaults to C++17 std::byte via Qt headers.
-win32:QMAKE_CXXFLAGS += -std=gnu++14
-
 greaterThan(QT_MAJOR_VERSION, 4) {
     QT += widgets
     DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0
@@ -472,8 +469,14 @@ contains(RELEASE, 1) {
     LIBS += -lrt -ldl
 }
 
-# Qt/MinGW specs enable gc-sections; hash algo symbols are only referenced indirectly.
+# MinGW/MXE: Windows 'byte' typedef vs C++17 std::byte (must be last — overrides Qt mkspec c++17).
 win32 {
+    CONFIG -= c++17 c++1z c++2a c++20 c++2b
+    CONFIG += c++14
+    QMAKE_CXXFLAGS += -std=gnu++14 -include $$PWD/src/qt/mingw-preinclude.h
+    QMAKE_CXXFLAGS_RELEASE += -std=gnu++14
+    QMAKE_CXXFLAGS_DEBUG += -std=gnu++14
+    # Qt/MinGW specs enable gc-sections; hash algo symbols are only referenced indirectly.
     QMAKE_CFLAGS -= -ffunction-sections -fdata-sections
     QMAKE_CXXFLAGS -= -ffunction-sections -fdata-sections
     QMAKE_LFLAGS -= -Wl,--gc-sections
