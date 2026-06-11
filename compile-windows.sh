@@ -155,6 +155,7 @@ install_apt_packages() {
         lzip
         ruby
         libgdk-pixbuf2.0-bin
+        libpcre2-dev
         cmake
         ninja-build
     )
@@ -451,31 +452,53 @@ build_cli() {
     log "CLI binary: $OUTPUT_DIR/InfiniteRicksd.exe"
 }
 
-meson_wrap_cache_file() {
-    local url="$1"
-    local base
-    base="$(basename "$url")"
-    python3 -c "import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8] + '-' + sys.argv[2])" "$url" "$base"
+host_pkg_config_path() {
+    local paths=()
+    local triplet
+    triplet="$(gcc -dumpmachine 2>/dev/null || true)"
+    [[ -n "$triplet" && -d "/usr/lib/${triplet}/pkgconfig" ]] && paths+=("/usr/lib/${triplet}/pkgconfig")
+    [[ -d /usr/lib/pkgconfig ]] && paths+=("/usr/lib/pkgconfig")
+    [[ -d /usr/share/pkgconfig ]] && paths+=("/usr/share/pkgconfig")
+    local IFS=:
+    printf '%s' "${paths[*]}"
 }
 
-prefetch_mxe_meson_wraps() {
-    local cache="$MXE_DIR/.meson-package-cache"
-    mkdir -p "$cache"
-    export MESON_PACKAGE_CACHE_DIR="$cache"
+prefetch_glib_pcre2_for_mxe() {
+    local pcre2_tar="$MXE_DIR/pkg/pcre2-10.46.tar.bz2"
+    local primary="https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2"
+    local fallback="https://github.com/mesonbuild/wrapdb/releases/download/pcre2_10.46-1/pcre2-10.46.tar.bz2"
+    [[ -f "$pcre2_tar" ]] && return 0
+    mkdir -p "$MXE_DIR/pkg"
+    log "Downloading pcre2 10.46 for MXE glib (offline subproject)"
+    if ! curl -fL --retry 5 --retry-delay 10 -o "$pcre2_tar" "$primary"; then
+        curl -fL --retry 5 --retry-delay 10 -o "$pcre2_tar" "$fallback" || \
+            die "Could not download pcre2 for MXE glib. Check internet access to github.com."
+    fi
+}
 
-    local wraps=(
-        "https://github.com/mesonbuild/wrapdb/releases/download/pcre2_10.46-1/pcre2-10.46.tar.bz2"
-    )
-    local url cached name
-    for url in "${wraps[@]}"; do
-        name="$(meson_wrap_cache_file "$url")"
-        cached="$cache/$name"
-        [[ -f "$cached" ]] && continue
-        log "Prefetching meson wrap: $name (MXE glib needs this)"
-        if ! curl -fL --retry 5 --retry-delay 10 -o "$cached" "$url"; then
-            die "Could not download $url — MXE glib/Qt build needs internet access to GitHub."
-        fi
-    done
+patch_mxe_glib_native_build() {
+    local glib_mk="$MXE_DIR/src/glib.mk"
+    [[ -f "$glib_mk" ]] || return 0
+    grep -q 'infinite-ricks-glib-pcre2-fix' "$glib_mk" && return 0
+
+    local host_pc
+    host_pc="$(host_pkg_config_path)"
+    python3 - "$glib_mk" "$host_pc" <<'PY'
+import sys
+path, host_pc = sys.argv[1], sys.argv[2]
+text = open(path, encoding="utf-8").read()
+needle = "    '$(MXE_MESON_NATIVE_WRAPPER)' \\\n        --buildtype=release \\\n        -Dtests=false \\"
+inject = f"""    # infinite-ricks-glib-pcre2-fix
+    test -f '$(SOURCE_DIR)/subprojects/pcre2-10.46/meson.build' || (mkdir -p '$(SOURCE_DIR)/subprojects' && tar xjf '$(PWD)/pkg/pcre2-10.46.tar.bz2' -C '$(SOURCE_DIR)/subprojects')
+    PKG_CONFIG_PATH='{host_pc}:$(PREFIX)/$(BUILD)/lib/pkgconfig' \\
+    '$(MXE_MESON_NATIVE_WRAPPER)' \\
+        --buildtype=release \\
+        -Dtests=false \\"""
+if needle not in text:
+    raise SystemExit(f"Could not patch {path}: MXE glib.mk layout changed")
+open(path, "w", encoding="utf-8").write(text.replace(needle, inject, 1))
+PY
+    log "Patched MXE glib build to use local/system pcre2"
 }
 
 ensure_mxe_host_ninja() {
@@ -513,13 +536,17 @@ EOF
   # Some minimal Ubuntu images lack default -lstdc++ search paths for MXE host tools.
   export LIBRARY_PATH="/usr/lib/gcc/$(gcc -dumpmachine)/$(gcc -dumpversion)${LIBRARY_PATH:+:$LIBRARY_PATH}"
   ensure_mxe_host_ninja
-  prefetch_mxe_meson_wraps
+  prefetch_glib_pcre2_for_mxe
+  patch_mxe_glib_native_build
 
   pushd "$MXE_DIR" >/dev/null
-  # Host glib failed for some users when meson could not download wrapdb pcre2.
+  # Host glib is required before Qt; meson may fail to download pcre2 from wrapdb.
   if [[ ! -f "usr/x86_64-pc-linux-gnu/installed/glib" ]]; then
       log "Building MXE host glib (one-time step before Qt)..."
-      make glib -j"$JOBS" MXE_TARGETS=x86_64-pc-linux-gnu || die "MXE host glib failed. Ensure internet access to github.com and retry."
+      rm -rf "tmp-glib-x86_64-pc-linux-gnu"
+      export PKG_CONFIG_PATH="$(host_pkg_config_path):${PKG_CONFIG_PATH:-}"
+      make glib -j"$JOBS" MXE_TARGETS=x86_64-pc-linux-gnu || \
+          die "MXE host glib failed. Install libpcre2-dev and ensure github.com is reachable."
   fi
   make qtbase -j"$JOBS" MXE_TARGETS="${MXE_TARGET}"
   popd >/dev/null
