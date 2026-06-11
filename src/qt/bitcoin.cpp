@@ -116,7 +116,9 @@ static void handleRunawayException(std::exception *e)
 int main(int argc, char *argv[])
 {
     // Do this early as we don't want to bother initializing if we are just calling IPC
+#ifndef Q_OS_ANDROID
     ipcScanRelay(argc, argv);
+#endif
 
 #if QT_VERSION < 0x050000
     // Internal string conversion is all UTF-8
@@ -255,7 +257,9 @@ int main(int argc, char *argv[])
                 }
 
                 // Place this here as guiref has to be defined if we don't want to lose URIs
+#ifndef Q_OS_ANDROID
                 ipcInit(argc, argv);
+#endif
 
                 app.exec();
 

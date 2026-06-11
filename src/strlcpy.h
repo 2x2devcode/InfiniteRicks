@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__ANDROID__)
 #if defined(__GLIBC__) && defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 38)
 // glibc 2.38+ provides strlcpy/strlcat via string.h
 #define BITCOIN_HAVE_GLIBC_STRLCPY 1

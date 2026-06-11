@@ -124,7 +124,7 @@ case "$TARGET_OS" in
         ;;
     OS_ANDROID_CROSSCOMPILE)
         PLATFORM=OS_ANDROID
-        COMMON_FLAGS="$MEMCMP_FLAG -D_REENTRANT -DOS_ANDROID -DLEVELDB_PLATFORM_POSIX"
+        COMMON_FLAGS="$MEMCMP_FLAG -fPIC -D_REENTRANT -DOS_ANDROID -DLEVELDB_PLATFORM_POSIX"
         PLATFORM_LDFLAGS=""  # All pthread features are in the Android C library
         PORT_FILE=port/port_posix.cc
         CROSS_COMPILE=true
