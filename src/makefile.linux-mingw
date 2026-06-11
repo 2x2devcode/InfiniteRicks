@@ -8,10 +8,10 @@ TARGET_PLATFORM?=x86_64
 
 DEPSDIR?=$(HOME)/.infinite-ricks/mingw-deps
 
-CC:=$(TARGET_PLATFORM)-w64-mingw32-gcc
-CXX:=$(TARGET_PLATFORM)-w64-mingw32-g++
-RANLIB=$(TARGET_PLATFORM)-w64-mingw32-ranlib
-STRIP=$(TARGET_PLATFORM)-w64-mingw32-strip
+CC?=$(TARGET_PLATFORM)-w64-mingw32-gcc
+CXX?=$(TARGET_PLATFORM)-w64-mingw32-g++
+RANLIB?=$(TARGET_PLATFORM)-w64-mingw32-ranlib
+STRIP?=$(TARGET_PLATFORM)-w64-mingw32-strip
 
 USE_UPNP:=0
 BOOST_LIB_SUFFIX?=

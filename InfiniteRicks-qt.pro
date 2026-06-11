@@ -10,6 +10,9 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 lessThan(QT_MAJOR_VERSION, 5): CONFIG += static
 QMAKE_CXXFLAGS = -fpermissive
 
+# MinGW Windows headers typedef 'byte'; GCC 11+ defaults to C++17 std::byte via Qt headers.
+win32:QMAKE_CXXFLAGS += -std=gnu++14
+
 greaterThan(QT_MAJOR_VERSION, 4) {
     QT += widgets
     DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0
@@ -48,7 +51,9 @@ QMAKE_LFLAGS *= -fstack-protector-all --param ssp-buffer-size=1
 # This can be enabled for Windows, when we switch to MinGW >= 4.4.x.
 }
 # for extra security on Windows: enable ASLR and DEP via GCC linker flags
-win32:QMAKE_LFLAGS *= -Wl,--large-address-aware -static
+# --large-address-aware is 32-bit PE only; x86_64 MinGW ld rejects it.
+win32:contains(QMAKE_CXX, "i686-w64-mingw32"):QMAKE_LFLAGS *= -Wl,--large-address-aware
+win32:QMAKE_LFLAGS *= -static
 win32:QMAKE_LFLAGS += -static-libgcc -static-libstdc++
 lessThan(QT_MAJOR_VERSION, 5): win32: QMAKE_LFLAGS *= -static
 
@@ -370,7 +375,9 @@ CODECFORTR = UTF-8
 TRANSLATIONS = $$files(src/qt/locale/bitcoin_*.ts)
 
 isEmpty(QMAKE_LRELEASE) {
-    win32:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]\\lrelease.exe
+    # Cross-compiling Windows on Linux: MXE QT_INSTALL_BINS has no runnable lrelease.
+    unix:win32:QMAKE_LRELEASE = lrelease
+    else:win32:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]/lrelease
     else:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]/lrelease
 }
 isEmpty(QM_DIR):QM_DIR = $$PWD/src/qt/locale
@@ -463,6 +470,13 @@ contains(RELEASE, 1) {
 !windows:!macx {
     DEFINES += LINUX
     LIBS += -lrt -ldl
+}
+
+# Qt/MinGW specs enable gc-sections; hash algo symbols are only referenced indirectly.
+win32 {
+    QMAKE_CFLAGS -= -ffunction-sections -fdata-sections
+    QMAKE_CXXFLAGS -= -ffunction-sections -fdata-sections
+    QMAKE_LFLAGS -= -Wl,--gc-sections
 }
 
 system($$QMAKE_LRELEASE -silent $$_PRO_FILE_)
