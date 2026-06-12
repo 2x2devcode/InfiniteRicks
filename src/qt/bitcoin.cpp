@@ -8,6 +8,7 @@
 #include "guiutil.h"
 #include "guiconstants.h"
 #include "introdialog.h"
+#include "androidlog.h"
 
 #include "init.h"
 #include "ui_interface.h"
@@ -40,6 +41,12 @@ static QSplashScreen *splashref;
 
 static void ThreadSafeMessageBox(const std::string& message, const std::string& caption, int style)
 {
+#if defined(Q_OS_ANDROID)
+    (void)style;
+    IR_LOGE("%s: %s", caption.c_str(), message.c_str());
+    fprintf(stderr, "%s: %s\n", caption.c_str(), message.c_str());
+    return;
+#endif
     // Message from network thread
     if(guiref)
     {
@@ -109,13 +116,20 @@ static std::string Translate(const char* psz)
 static void handleRunawayException(std::exception *e)
 {
     PrintExceptionContinue(e, "Runaway exception");
+#if defined(Q_OS_ANDROID)
+    IR_LOGE("Runaway exception: %s", strMiscWarning.c_str());
+    fprintf(stderr, "Runaway exception: %s\n", strMiscWarning.c_str());
+    exit(1);
+#else
     QMessageBox::critical(0, "Runaway exception", BitcoinGUI::tr("A fatal error occurred. InfiniteRicks can no longer continue safely and will quit.") + QString("\n\n") + QString::fromStdString(strMiscWarning));
     exit(1);
+#endif
 }
 
 #ifndef BITCOIN_QT_TEST
 int main(int argc, char *argv[])
 {
+    IR_LOGI("main() starting");
     // Do this early as we don't want to bother initializing if we are just calling IPC
 #ifndef Q_OS_ANDROID
     ipcScanRelay(argc, argv);
@@ -165,8 +179,13 @@ int main(int argc, char *argv[])
     {
         // This message can not be translated, as translation is not initialized yet
         // (which not yet possible because lang=XX can be overridden in bitcoin.conf in the data directory)
-        QMessageBox::critical(0, "InfiniteRicks",
-                              QString("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(mapArgs["-datadir"])));
+        const std::string msg = strprintf("Error: Specified data directory \"%s\" does not exist.", mapArgs["-datadir"].c_str());
+#if defined(Q_OS_ANDROID)
+        IR_LOGE("%s", msg.c_str());
+        fprintf(stderr, "%s\n", msg.c_str());
+#else
+        QMessageBox::critical(0, "InfiniteRicks", QString::fromStdString(msg));
+#endif
         return 1;
     }
     ReadConfigFile(mapArgs, mapMultiArgs);
@@ -251,8 +270,10 @@ int main(int argc, char *argv[])
             GUIUtil::SetStartOnSystemStartup(true);
 #endif
 
+        IR_LOGI("creating main window");
         BitcoinGUI window;
         guiref = &window;
+        IR_LOGI("running AppInit2");
         if(AppInit2())
         {
             {
@@ -278,11 +299,18 @@ int main(int argc, char *argv[])
                     window.show();
                 }
 
+#if defined(Q_OS_ANDROID)
+                IR_LOGI("starting P2P node");
+                if (!StartNodeThread())
+                    IR_LOGE("StartNodeThread failed");
+#endif
+
                 // Place this here as guiref has to be defined if we don't want to lose URIs
 #ifndef Q_OS_ANDROID
                 ipcInit(argc, argv);
 #endif
 
+                IR_LOGI("entering event loop");
                 app.exec();
 
                 window.hide();

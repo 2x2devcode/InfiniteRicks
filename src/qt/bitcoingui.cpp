@@ -180,7 +180,11 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     statusBar()->addWidget(progressBar);
     statusBar()->addPermanentWidget(frameBlocks);
 
+#if defined(Q_OS_ANDROID)
+    syncIconMovie = 0;
+#else
     syncIconMovie = new QMovie(":/movies/update_spinner", "mng", this);
+#endif
 
     // Clicking on a transaction on the overview page simply sends you to transaction history page
     connect(overviewPage, SIGNAL(transactionClicked(QModelIndex)), this, SLOT(gotoHistoryPage()));
@@ -594,8 +598,12 @@ void BitcoinGUI::setNumBlocks(int count, int nTotalBlocks)
     else
     {
         tooltip = tr("Catching up...") + QString("<br>") + tooltip;
-        labelBlocksIcon->setMovie(syncIconMovie);
-        syncIconMovie->start();
+        if (syncIconMovie) {
+            labelBlocksIcon->setMovie(syncIconMovie);
+            syncIconMovie->start();
+        } else {
+            labelBlocksIcon->setPixmap(QIcon(":/icons/clock5").pixmap(STATUSBAR_ICONSIZE, STATUSBAR_ICONSIZE));
+        }
 
         overviewPage->showOutOfSyncWarning(true);
     }
