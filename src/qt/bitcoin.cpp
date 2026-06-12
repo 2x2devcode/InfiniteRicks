@@ -129,7 +129,9 @@ int main(int argc, char *argv[])
 
     Q_INIT_RESOURCE(bitcoin);
     QApplication app(argc, argv);
+#if !defined(Q_OS_ANDROID)
     QApplication::setStyle("Fusion");
+#endif
 
     QFont appFont = app.font();
     appFont.setStyleStrategy(static_cast<QFont::StyleStrategy>(
@@ -147,6 +149,13 @@ int main(int argc, char *argv[])
 
     // Command-line options take precedence:
     ParseParameters(argc, argv);
+
+#if defined(Q_OS_ANDROID)
+    SoftSetBoolArg("-listen", false);
+    SoftSetBoolArg("-upnp", false);
+    SoftSetBoolArg("-discover", false);
+    SoftSetBoolArg("-printtoconsole", true);
+#endif
 
     if (!IntroDialog::pickDataDirectory())
         return 0;

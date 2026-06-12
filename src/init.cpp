@@ -202,7 +202,12 @@ int main(int argc, char* argv[])
 
 bool static InitError(const std::string &str)
 {
+#if defined(__ANDROID__)
+    fprintf(stderr, "InitError: %s\n", str.c_str());
+    strMiscWarning = str;
+#else
     uiInterface.ThreadSafeMessageBox(str, _("InfiniteRicks"), CClientUIInterface::OK | CClientUIInterface::MODAL);
+#endif
     return false;
 }
 
@@ -404,6 +409,13 @@ bool AppInit2()
     if (fTestNet) {
         SoftSetBoolArg("-irc", true);
     }
+
+#if defined(__ANDROID__)
+    // Mobile: outbound connections only; avoid bind/listen failures and startup dialogs.
+    SoftSetBoolArg("-listen", false);
+    SoftSetBoolArg("-upnp", false);
+    SoftSetBoolArg("-discover", false);
+#endif
 
     if (mapArgs.count("-bind")) {
         // when specifying an explicit binding address, you want to listen on it
