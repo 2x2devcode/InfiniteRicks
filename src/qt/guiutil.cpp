@@ -272,6 +272,15 @@ QPixmap fadedPixmap(const QPixmap &source, qreal opacity)
 
 bool needChooseDataDirectory()
 {
+#if defined(Q_OS_ANDROID)
+    if (!mapArgs.count("-datadir")) {
+        boost::filesystem::path defaultDir = GetDefaultDataDir();
+        boost::filesystem::create_directories(defaultDir);
+        mapArgs["-datadir"] = defaultDir.string();
+    }
+    return false;
+#endif
+
     if (mapArgs.count("-datadir"))
         return false;
 
@@ -424,7 +433,7 @@ bool SetStartOnSystemStartup(bool fAutoStart)
     return true;
 }
 
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
 
 // Follow the Desktop Application Autostart Spec:
 //  http://standards.freedesktop.org/autostart-spec/autostart-spec-latest.html
