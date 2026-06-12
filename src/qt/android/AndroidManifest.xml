@@ -2,7 +2,7 @@
 <manifest package="org.infinitericks.qt"
           xmlns:android="http://schemas.android.com/apk/res/android"
           android:versionName="2.0.0"
-          android:versionCode="204"
+          android:versionCode="205"
           android:installLocation="auto">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -16,7 +16,7 @@
                       android:smallScreens="true"/>
 
     <application android:hardwareAccelerated="true"
-                 android:name="org.qtproject.qt5.android.bindings.QtApplication"
+                 android:name="org.infinitericks.qt.InfiniteRicksApplication"
                  android:label="InfiniteRicks Wallet"
                  android:allowBackup="false"
                  android:allowNativeHeapPointerTagging="false"
@@ -39,7 +39,7 @@
             <meta-data android:name="android.app.use_local_qt_libs" android:value="1"/>
             <meta-data android:name="android.app.background_running" android:value="false"/>
             <meta-data android:name="android.app.auto_screen_scale_factor" android:value="false"/>
-            <meta-data android:name="android.app.extract_android_style" android:value="minimal"/>
+            <meta-data android:name="android.app.extract_android_style" android:value="none"/>
             <meta-data android:name="android.app.load_local_libs_resource_id" android:resource="@array/load_local_libs"/>
         </activity>
     </application>

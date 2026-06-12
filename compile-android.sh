@@ -723,7 +723,10 @@ build_apk() {
     sign_apk "$unsigned_apk" "$signed_apk"
     verify_apk_android15 "$signed_apk"
 
-    local friendly_apk="$OUTPUT_DIR/InfiniteRicks-wallet-android15-v204-arm64.apk"
+    local version_code
+    version_code="$(grep -oP 'android:versionCode="\K[0-9]+' "$REPO_ROOT/src/qt/android/AndroidManifest.xml" | head -1)"
+    version_code="${version_code:-205}"
+    local friendly_apk="$OUTPUT_DIR/InfiniteRicks-wallet-android15-v${version_code}-${ABI}.apk"
     cp -f "$signed_apk" "$friendly_apk"
 
     log "Signed APK (install this on Android 15+): $signed_apk"

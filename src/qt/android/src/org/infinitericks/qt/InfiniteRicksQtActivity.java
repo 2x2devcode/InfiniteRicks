@@ -1,7 +1,6 @@
 package org.infinitericks.qt;
 
 import android.os.Bundle;
-import android.system.Os;
 
 import org.qtproject.qt5.android.bindings.QtActivity;
 
@@ -13,16 +12,14 @@ public class InfiniteRicksQtActivity extends QtActivity
     public void onCreate(Bundle savedInstanceState)
     {
         final File homeDir = getFilesDir();
-        final File dataDir = new File(homeDir.getAbsolutePath() + "/.InfiniteRicks");
-        if (!dataDir.exists()) {
-            dataDir.mkdirs();
-        }
+        final File dataDir = new File(homeDir, ".InfiniteRicks");
+        dataDir.mkdirs();
 
-        try {
-            Os.setenv("HOME", homeDir.getAbsolutePath(), true);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        // Qt reads these before native startup (see QtActivity.onCreateHook).
+        ENVIRONMENT_VARIABLES = "QT_USE_ANDROID_NATIVE_DIALOGS=0\t"
+                + "HOME=" + homeDir.getAbsolutePath() + "\t"
+                + "TMPDIR=" + getCacheDir().getAbsolutePath() + "\t";
+        APPLICATION_PARAMETERS = "-datadir=" + dataDir.getAbsolutePath();
 
         super.onCreate(savedInstanceState);
     }
