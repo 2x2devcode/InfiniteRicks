@@ -1011,6 +1011,9 @@ boost::filesystem::path GetDefaultDataDir()
     pathRet /= "Library/Application Support";
     fs::create_directory(pathRet);
     return pathRet / "InfiniteRicks";
+#elif defined(__ANDROID__)
+    // Android: HOME is set by InfiniteRicksQtActivity to Context.getFilesDir()
+    return pathRet / ".InfiniteRicks";
 #else
     // Unix
     return pathRet / ".InfiniteRicks";

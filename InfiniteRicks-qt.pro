@@ -34,7 +34,7 @@ contains(RELEASE, 1) {
     # Mac: compile for maximum compatibility (10.7, 64-bit)
     macx:QMAKE_CXXFLAGS += -mmacosx-version-min=10.7 -arch x86_64 -isysroot /Developer/SDKs/MacOSX10.7.sdk
 
-    !windows:!macx {
+    !windows:!macx:!android {
         # Linux: static link
         LIBS += -Wl,-Bstatic
     }
@@ -438,7 +438,7 @@ windows:!contains(MINGW_THREAD_BUGFIX, 0) {
     QMAKE_LIBS_QT_ENTRY = -lwinpthread -lmingwthrd $$QMAKE_LIBS_QT_ENTRY
 }
 
-!windows:!macx {
+!windows:!macx:!android {
     DEFINES += LINUX
     LIBS += -lrt
 }
@@ -463,13 +463,13 @@ windows:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32 -
 LIBS += -lboost_system$$BOOST_LIB_SUFFIX -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX -lboost_chrono$$BOOST_LIB_SUFFIX
 
 contains(RELEASE, 1) {
-    !windows:!macx {
+    !windows:!macx:!android {
         # Linux: turn dynamic linking back on for c/c++ runtime libraries
         LIBS += -Wl,-Bdynamic
     }
 }
 
-!windows:!macx {
+!windows:!macx:!android {
     DEFINES += LINUX
     LIBS += -lrt -ldl
 }
@@ -487,4 +487,26 @@ win32 {
     QMAKE_LFLAGS -= -Wl,--gc-sections
 }
 
-system($$QMAKE_LRELEASE -silent $$_PRO_FILE_)
+!android:system($$QMAKE_LRELEASE -silent $$_PRO_FILE_)
+
+android {
+    message(Building InfiniteRicks Android wallet)
+    DEFINES += ANDROID
+    USE_DBUS = 0
+    ANDROID_PACKAGE_SOURCE_DIR = $$PWD/src/qt/android
+    ANDROID_MIN_SDK_VERSION = 24
+    ANDROID_TARGET_SDK_VERSION = 30
+    ANDROID_APP_NAME = InfiniteRicks Wallet
+    ANDROID_VERSION_CODE = 200
+    ANDROID_VERSION_NAME = $$VERSION
+
+    DISTFILES += \
+        src/qt/android/AndroidManifest.xml \
+        src/qt/android/build.gradle \
+        src/qt/android/gradle.properties \
+        src/qt/android/res/values/libs.xml \
+        src/qt/android/src/org/infinitericks/qt/InfiniteRicksQtActivity.java
+
+    ANDROID_LLVM_AR = $$dirname(QMAKE_CC)/llvm-ar
+    genleveldb.commands = cd $$PWD/src/leveldb && $(MAKE) clean && CC=$$QMAKE_CC CXX=$$QMAKE_CXX AR=$$ANDROID_LLVM_AR TARGET_OS=OS_ANDROID_CROSSCOMPILE $(MAKE) OPT=\"-fPIC $$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" libleveldb.a libmemenv.a
+}

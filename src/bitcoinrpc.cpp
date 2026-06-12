@@ -29,6 +29,11 @@
 
 #define printf OutputDebugStringF
 
+// Android NDK headers define a macro named "context" that breaks boost::asio::ssl::context.
+#if defined(__ANDROID__)
+# undef context
+#endif
+
 #if BOOST_VERSION >= 107000
 #define RPC_GET_IO_SERVICE(obj) static_cast<boost::asio::io_context&>((obj).get_executor().context())
 #define RPC_SSL_CONTEXT(method) boost::asio::ssl::context(method)
@@ -638,9 +643,9 @@ class AcceptedConnectionImpl : public AcceptedConnection
 public:
     AcceptedConnectionImpl(
             asio::io_service& io_service,
-            ssl::context &context,
+            ssl::context &sslCtx,
             bool fUseSSL) :
-        sslStream(io_service, context),
+        sslStream(io_service, sslCtx),
         _d(sslStream, fUseSSL),
         _stream(_d)
     {
@@ -693,7 +698,7 @@ void ThreadRPCServer(void* parg)
 // Forward declaration required for RPCListen
 template <typename Protocol, typename SocketAcceptorService>
 static void RPCAcceptHandler(boost::shared_ptr< basic_socket_acceptor<Protocol, SocketAcceptorService> > acceptor,
-                             ssl::context& context,
+                             ssl::context& sslCtx,
                              bool fUseSSL,
                              AcceptedConnection* conn,
                              const boost::system::error_code& error);
@@ -703,18 +708,18 @@ static void RPCAcceptHandler(boost::shared_ptr< basic_socket_acceptor<Protocol, 
  */
 template <typename Protocol, typename SocketAcceptorService>
 static void RPCListen(boost::shared_ptr< basic_socket_acceptor<Protocol, SocketAcceptorService> > acceptor,
-                   ssl::context& context,
+                   ssl::context& sslCtx,
                    const bool fUseSSL)
 {
     // Accept connection
-    AcceptedConnectionImpl<Protocol>* conn = new AcceptedConnectionImpl<Protocol>(RPC_GET_IO_SERVICE(*acceptor), context, fUseSSL);
+    AcceptedConnectionImpl<Protocol>* conn = new AcceptedConnectionImpl<Protocol>(RPC_GET_IO_SERVICE(*acceptor), sslCtx, fUseSSL);
 
     acceptor->async_accept(
             conn->sslStream.lowest_layer(),
             conn->peer,
             boost::bind(&RPCAcceptHandler<Protocol, SocketAcceptorService>,
                 acceptor,
-                boost::ref(context),
+                boost::ref(sslCtx),
                 fUseSSL,
                 conn,
                 boost::asio::placeholders::error));
@@ -725,7 +730,7 @@ static void RPCListen(boost::shared_ptr< basic_socket_acceptor<Protocol, SocketA
  */
 template <typename Protocol, typename SocketAcceptorService>
 static void RPCAcceptHandler(boost::shared_ptr< basic_socket_acceptor<Protocol, SocketAcceptorService> > acceptor,
-                             ssl::context& context,
+                             ssl::context& sslCtx,
                              const bool fUseSSL,
                              AcceptedConnection* conn,
                              const boost::system::error_code& error)
@@ -735,7 +740,7 @@ static void RPCAcceptHandler(boost::shared_ptr< basic_socket_acceptor<Protocol, 
     // Immediately start accepting new connections, except when we're cancelled or our socket is closed.
     if (error != asio::error::operation_aborted
      && acceptor->is_open())
-        RPCListen(acceptor, context, fUseSSL);
+        RPCListen(acceptor, sslCtx, fUseSSL);
 
     AcceptedConnectionImpl<ip::tcp>* tcp_conn = dynamic_cast< AcceptedConnectionImpl<ip::tcp>* >(conn);
 
@@ -803,23 +808,23 @@ void ThreadRPCServer2(void* parg)
 
     asio::io_service io_service;
 
-    ssl::context context(RPC_SSL_CONTEXT(ssl::context::sslv23));
+    ssl::context sslCtx{RPC_SSL_CONTEXT(ssl::context::sslv23)};
     if (fUseSSL)
     {
-        context.set_options(ssl::context::no_sslv2);
+        sslCtx.set_options(ssl::context::no_sslv2);
 
         boost::filesystem::path pathCertFile(GetArg("-rpcsslcertificatechainfile", "server.cert"));
         if (!pathCertFile.is_complete()) pathCertFile = boost::filesystem::path(GetDataDir()) / pathCertFile;
-        if (boost::filesystem::exists(pathCertFile)) context.use_certificate_chain_file(pathCertFile.string());
+        if (boost::filesystem::exists(pathCertFile)) sslCtx.use_certificate_chain_file(pathCertFile.string());
         else printf("ThreadRPCServer ERROR: missing server certificate file %s\n", pathCertFile.string().c_str());
 
         boost::filesystem::path pathPKFile(GetArg("-rpcsslprivatekeyfile", "server.pem"));
         if (!pathPKFile.is_complete()) pathPKFile = boost::filesystem::path(GetDataDir()) / pathPKFile;
-        if (boost::filesystem::exists(pathPKFile)) context.use_private_key_file(pathPKFile.string(), ssl::context::pem);
+        if (boost::filesystem::exists(pathPKFile)) sslCtx.use_private_key_file(pathPKFile.string(), ssl::context::pem);
         else printf("ThreadRPCServer ERROR: missing server private key file %s\n", pathPKFile.string().c_str());
 
         string strCiphers = GetArg("-rpcsslciphers", "TLSv1+HIGH:!SSLv2:!aNULL:!eNULL:!AH:!3DES:@STRENGTH");
-        SSL_CTX_set_cipher_list(RPC_SSL_NATIVE_HANDLE(context), strCiphers.c_str());
+        SSL_CTX_set_cipher_list(RPC_SSL_NATIVE_HANDLE(sslCtx), strCiphers.c_str());
     }
 
     // Try a dual IPv6/IPv4 socket, falling back to separate IPv4 and IPv6 sockets
@@ -844,7 +849,7 @@ void ThreadRPCServer2(void* parg)
         acceptor->bind(endpoint);
         acceptor->listen(socket_base::max_connections);
 
-        RPCListen(acceptor, context, fUseSSL);
+        RPCListen(acceptor, sslCtx, fUseSSL);
         // Cancel outstanding listen-requests for this acceptor when shutting down
         StopRequests.connect(signals2::slot<void ()>(
                     static_cast<void (ip::tcp::acceptor::*)()>(&ip::tcp::acceptor::close), acceptor.get())
@@ -870,7 +875,7 @@ void ThreadRPCServer2(void* parg)
             acceptor->bind(endpoint);
             acceptor->listen(socket_base::max_connections);
 
-            RPCListen(acceptor, context, fUseSSL);
+            RPCListen(acceptor, sslCtx, fUseSSL);
             // Cancel outstanding listen-requests for this acceptor when shutting down
             StopRequests.connect(signals2::slot<void ()>(
                         static_cast<void (ip::tcp::acceptor::*)()>(&ip::tcp::acceptor::close), acceptor.get())
@@ -1114,9 +1119,9 @@ Object CallRPC(const string& strMethod, const Array& params)
     // Connect to localhost
     bool fUseSSL = GetBoolArg("-rpcssl");
     asio::io_service io_service;
-    ssl::context context(RPC_SSL_CONTEXT(ssl::context::sslv23));
-    context.set_options(ssl::context::no_sslv2);
-    asio::ssl::stream<asio::ip::tcp::socket> sslStream(io_service, context);
+    ssl::context sslCtx{RPC_SSL_CONTEXT(ssl::context::sslv23)};
+    sslCtx.set_options(ssl::context::no_sslv2);
+    asio::ssl::stream<asio::ip::tcp::socket> sslStream(io_service, sslCtx);
     SSLIOStreamDevice<asio::ip::tcp> d(sslStream, fUseSSL);
     iostreams::stream< SSLIOStreamDevice<asio::ip::tcp> > stream(d);
     if (!d.connect(GetArg("-rpcconnect", "127.0.0.1"), GetArg("-rpcport", itostr(GetDefaultRPCPort()))))
