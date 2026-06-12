@@ -497,7 +497,7 @@ android {
     ANDROID_MIN_SDK_VERSION = 24
     ANDROID_TARGET_SDK_VERSION = 34
     ANDROID_APP_NAME = InfiniteRicks Wallet
-    ANDROID_VERSION_CODE = 204
+    ANDROID_VERSION_CODE = 205
     # Android 15+ may use 16 KB memory pages on arm64 devices.
     QMAKE_LFLAGS += -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
     ANDROID_VERSION_NAME = $$VERSION
@@ -507,6 +507,7 @@ android {
         src/qt/android/build.gradle \
         src/qt/android/gradle.properties \
         src/qt/android/res/values/libs.xml \
+        src/qt/android/src/org/infinitericks/qt/InfiniteRicksApplication.java \
         src/qt/android/src/org/infinitericks/qt/InfiniteRicksQtActivity.java
 
     ANDROID_LLVM_AR = $$dirname(QMAKE_CC)/llvm-ar

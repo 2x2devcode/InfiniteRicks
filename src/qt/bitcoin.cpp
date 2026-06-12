@@ -130,14 +130,14 @@ static void handleRunawayException(std::exception *e)
 #include <android/log.h>
 __attribute__((constructor(101))) static void ir_library_loaded()
 {
-    __android_log_print(ANDROID_LOG_INFO, "InfiniteRicks", "native library loaded (v204)");
+    __android_log_print(ANDROID_LOG_INFO, "InfiniteRicks", "native library loaded (v205)");
 }
 #endif
 
 #ifndef BITCOIN_QT_TEST
 int main(int argc, char *argv[])
 {
-    IR_LOGI("main() starting (v204)");
+    IR_LOGI("main() starting (v205) argc=%d", argc);
     // Do this early as we don't want to bother initializing if we are just calling IPC
 #ifndef Q_OS_ANDROID
     ipcScanRelay(argc, argv);
@@ -150,6 +150,9 @@ int main(int argc, char *argv[])
 #endif
 
     Q_INIT_RESOURCE(bitcoin);
+#if defined(Q_OS_ANDROID)
+    qputenv("QT_QPA_PLATFORM", "android");
+#endif
 #if defined(Q_OS_WIN)
     // DirectWrite subpixel antialiasing looks like a drop shadow on dark sidebars.
     qputenv("QT_QPA_PLATFORM", "windows:fontengine=freetype");
