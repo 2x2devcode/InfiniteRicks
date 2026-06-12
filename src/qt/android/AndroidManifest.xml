@@ -2,7 +2,7 @@
 <manifest package="org.infinitericks.qt"
           xmlns:android="http://schemas.android.com/apk/res/android"
           android:versionName="2.0.0"
-          android:versionCode="200"
+          android:versionCode="201"
           android:installLocation="auto">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -18,7 +18,8 @@
     <application android:hardwareAccelerated="true"
                  android:name="org.qtproject.qt5.android.bindings.QtApplication"
                  android:label="InfiniteRicks Wallet"
-                 android:allowBackup="false">
+                 android:allowBackup="false"
+                 android:extractNativeLibs="true">
         <activity android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"
                   android:name="org.infinitericks.qt.InfiniteRicksQtActivity"
                   android:label="InfiniteRicks Wallet"
