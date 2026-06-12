@@ -1,0 +1,306 @@
+/* InfiniteRicks Android — modern wallet UI (green #5EAE4C, dark theme). */
+
+* {
+    font-family: sans-serif;
+}
+
+QWidget {
+    background-color: #121418;
+    color: #f0f2f5;
+    font-size: 10pt;
+}
+
+QMainWindow {
+    background-color: #121418;
+}
+
+QMainWindow::separator {
+    width: 0;
+    height: 0;
+}
+
+QWidget#contentArea {
+    background-color: #121418;
+}
+
+QStackedWidget {
+    background: transparent;
+}
+
+/* Header */
+QWidget#androidHeader {
+    background: transparent;
+}
+
+QLabel#androidHeaderTitle {
+    color: #ffffff;
+    font-size: 16pt;
+    font-weight: 700;
+    background: transparent;
+}
+
+QLabel#androidHeaderLogo {
+    background: #1e2228;
+    border-radius: 22px;
+    min-width: 44px;
+    max-width: 44px;
+    min-height: 44px;
+    max-height: 44px;
+}
+
+/* Balance hero card */
+QFrame#balanceHeroCard {
+    background-color: #5eae4c;
+    border: none;
+    border-radius: 22px;
+    padding: 4px;
+}
+
+QFrame#balanceHeroCard QLabel {
+    color: #ffffff;
+    background: transparent;
+    border: none;
+}
+
+QLabel#labelBalanceCaption {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 10pt;
+}
+
+QLabel#labelUnitBadge {
+    background-color: rgba(0, 0, 0, 0.18);
+    color: #ffffff;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-size: 8pt;
+    font-weight: 600;
+}
+
+QLabel#labelHeroBalance {
+    font-size: 22pt;
+    font-weight: 700;
+}
+
+QLabel#labelBalanceChange {
+    background-color: rgba(255, 255, 255, 0.16);
+    color: #e8ffe3;
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 9pt;
+}
+
+QPushButton#heroSettingsButton {
+    background: rgba(255, 255, 255, 0.14);
+    border: none;
+    border-radius: 18px;
+    min-width: 36px;
+    max-width: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    padding: 0;
+    color: #ffffff;
+}
+
+QPushButton#heroSettingsButton:pressed {
+    background: rgba(255, 255, 255, 0.24);
+}
+
+/* Quick actions */
+QWidget#quickActionsRow {
+    background: transparent;
+}
+
+QToolButton#quickActionButton {
+    background: #1e2228;
+    border: 1px solid #2a3038;
+    border-radius: 18px;
+    padding: 10px 6px 8px 6px;
+    color: #e8ebef;
+    font-size: 8pt;
+}
+
+QToolButton#quickActionButton:pressed {
+    background: #2a3038;
+}
+
+/* Wallet details / assets cards */
+QFrame#walletDetailsCard, QFrame#assetsCard {
+    background-color: #1a1e24;
+    border: 1px solid #2a3038;
+    border-radius: 18px;
+}
+
+QFrame#frameSync {
+    background-color: #1a1e24;
+    border: 1px solid #5eae4c;
+    border-radius: 14px;
+}
+
+QLabel#assetsSectionTitle {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #ffffff;
+    background: transparent;
+}
+
+QLabel#assetsFilterLabel {
+    color: #5eae4c;
+    font-weight: 600;
+    background: transparent;
+}
+
+QLabel#labelWalletStatus, QLabel#labelTransactionsStatus {
+    color: #f59e0b;
+    font-weight: normal;
+    background: transparent;
+}
+
+QLabel#labelSyncStatus {
+    color: #5eae4c;
+    background: transparent;
+}
+
+QListView#listTransactions {
+    background: transparent;
+    border: none;
+    outline: none;
+}
+
+QListView#listTransactions::item {
+    background: #23282e;
+    border-radius: 14px;
+    padding: 8px;
+    margin-bottom: 8px;
+}
+
+QListView#listTransactions::item:selected {
+    background: #2d353f;
+}
+
+QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background: #1e2228;
+    border: 1px solid #3a4048;
+    border-radius: 12px;
+    padding: 10px 12px;
+    color: #f0f2f5;
+    min-height: 1.4em;
+}
+
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus,
+QDoubleSpinBox:focus, QComboBox:focus {
+    border-color: #5eae4c;
+}
+
+QPushButton {
+    background: #1e2228;
+    border: 1px solid #3a4048;
+    border-radius: 12px;
+    padding: 10px 16px;
+    color: #f0f2f5;
+    min-height: 1.4em;
+}
+
+QPushButton:pressed {
+    background: #2a3038;
+}
+
+QPushButton:default {
+    background: #5eae4c;
+    border-color: #5eae4c;
+    color: #ffffff;
+}
+
+QTableView, QListView, QTreeView {
+    background: #1a1e24;
+    border: 1px solid #2a3038;
+    border-radius: 14px;
+    alternate-background-color: #1e2228;
+    gridline-color: #2a3038;
+    selection-background-color: #2d4a28;
+    selection-color: #ffffff;
+}
+
+QHeaderView::section {
+    background: #1e2228;
+    border: none;
+    border-bottom: 1px solid #2a3038;
+    padding: 8px;
+    color: #c5cad1;
+    font-weight: 600;
+}
+
+QTabWidget::pane {
+    border: 1px solid #2a3038;
+    border-radius: 14px;
+    background: #1a1e24;
+}
+
+QTabBar::tab {
+    background: #1e2228;
+    border: 1px solid #2a3038;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    padding: 8px 14px;
+    color: #9aa3ad;
+}
+
+QTabBar::tab:selected {
+    background: #1a1e24;
+    color: #5eae4c;
+}
+
+QProgressBar {
+    border: 1px solid #2a3038;
+    border-radius: 8px;
+    background: #1e2228;
+    text-align: center;
+    color: #ffffff;
+    max-height: 18px;
+}
+
+QProgressBar::chunk {
+    background: #5eae4c;
+    border-radius: 7px;
+}
+
+QStatusBar {
+    background: #121418;
+    border-top: 1px solid #1e2228;
+    color: #9aa3ad;
+}
+
+QMenuBar {
+    background: #121418;
+    color: #f0f2f5;
+}
+
+QDialog {
+    background: #121418;
+}
+
+/* Bottom navigation */
+QWidget#androidBottomNav {
+    background-color: #161a20;
+    border-top: 1px solid #2a3038;
+    min-height: 64px;
+    max-height: 64px;
+}
+
+QToolButton#androidNavButton {
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    padding: 6px 4px;
+    color: #8b939e;
+    font-size: 8pt;
+}
+
+QToolButton#androidNavButton:checked {
+    color: #5eae4c;
+    background: rgba(94, 174, 76, 0.12);
+}
+
+QToolButton#androidNavButton:pressed {
+    background: rgba(94, 174, 76, 0.18);
+}

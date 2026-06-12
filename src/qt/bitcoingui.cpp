@@ -26,6 +26,7 @@
 #include "guiutil.h"
 #include "rpcconsole.h"
 #include "watermarkwidget.h"
+#include "androidbottomnav.h"
 #include "wallet.h"
 
 #ifdef Q_OS_MAC
@@ -76,9 +77,15 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     trayIcon(0),
     notificator(0),
     rpcConsole(0),
+    androidBottomNav(0),
     nWeight(0)
 {
+#if defined(Q_OS_ANDROID)
+    resize(390, 780);
+    setWindowState(Qt::WindowMaximized);
+#else
     resize(1024, 640);
+#endif
     setWindowTitle(tr("InfiniteRicks") + " - " + tr("Wallet"));
 #ifndef Q_OS_MAC
     qApp->setWindowIcon(QIcon(":icons/bitcoin"));
@@ -126,7 +133,31 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     centralWidget->addWidget(addressBookPage);
     centralWidget->addWidget(receiveCoinsPage);
     centralWidget->addWidget(sendCoinsPage);
+
+#if defined(Q_OS_ANDROID)
+    QWidget *shell = new QWidget(this);
+    QVBoxLayout *shellLayout = new QVBoxLayout(shell);
+    shellLayout->setContentsMargins(0, 0, 0, 0);
+    shellLayout->setSpacing(0);
+    shellLayout->addWidget(contentArea, 1);
+    androidBottomNav = new AndroidBottomNav(shell);
+    shellLayout->addWidget(androidBottomNav);
+    setCentralWidget(shell);
+
+    connect(androidBottomNav, SIGNAL(homeClicked()), this, SLOT(gotoOverviewPage()));
+    connect(androidBottomNav, SIGNAL(sendClicked()), this, SLOT(gotoSendCoinsPage()));
+    connect(androidBottomNav, SIGNAL(receiveClicked()), this, SLOT(gotoReceiveCoinsPage()));
+    connect(androidBottomNav, SIGNAL(historyClicked()), this, SLOT(gotoHistoryPage()));
+
+    connect(overviewPage, SIGNAL(quickSendClicked()), this, SLOT(gotoSendCoinsPage()));
+    connect(overviewPage, SIGNAL(quickReceiveClicked()), this, SLOT(gotoReceiveCoinsPage()));
+    connect(overviewPage, SIGNAL(quickHistoryClicked()), this, SLOT(gotoHistoryPage()));
+    connect(overviewPage, SIGNAL(quickSettingsClicked()), this, SLOT(optionsClicked()));
+
+    menuBar()->hide();
+#else
     setCentralWidget(contentArea);
+#endif
 
     // Create status bar
     statusBar();
@@ -342,6 +373,9 @@ void BitcoinGUI::createMenuBar()
 
 void BitcoinGUI::createToolBars()
 {
+#if defined(Q_OS_ANDROID)
+    return;
+#endif
     QToolBar *toolbar = new QToolBar(tr("Tabs toolbar"), this);
     toolbar->setObjectName("sidebar");
     toolbar->setMovable(false);
@@ -720,6 +754,10 @@ void BitcoinGUI::gotoOverviewPage()
 {
     overviewAction->setChecked(true);
     centralWidget->setCurrentWidget(overviewPage);
+#if defined(Q_OS_ANDROID)
+    if (androidBottomNav)
+        androidBottomNav->setCurrentIndex(0);
+#endif
 
     exportAction->setEnabled(false);
     disconnect(exportAction, SIGNAL(triggered()), 0, 0);
@@ -729,6 +767,10 @@ void BitcoinGUI::gotoHistoryPage()
 {
     historyAction->setChecked(true);
     centralWidget->setCurrentWidget(transactionsPage);
+#if defined(Q_OS_ANDROID)
+    if (androidBottomNav)
+        androidBottomNav->setCurrentIndex(3);
+#endif
 
     exportAction->setEnabled(true);
     disconnect(exportAction, SIGNAL(triggered()), 0, 0);
@@ -749,6 +791,10 @@ void BitcoinGUI::gotoReceiveCoinsPage()
 {
     receiveCoinsAction->setChecked(true);
     centralWidget->setCurrentWidget(receiveCoinsPage);
+#if defined(Q_OS_ANDROID)
+    if (androidBottomNav)
+        androidBottomNav->setCurrentIndex(2);
+#endif
 
     exportAction->setEnabled(true);
     disconnect(exportAction, SIGNAL(triggered()), 0, 0);
@@ -759,6 +805,10 @@ void BitcoinGUI::gotoSendCoinsPage()
 {
     sendCoinsAction->setChecked(true);
     centralWidget->setCurrentWidget(sendCoinsPage);
+#if defined(Q_OS_ANDROID)
+    if (androidBottomNav)
+        androidBottomNav->setCurrentIndex(1);
+#endif
 
     exportAction->setEnabled(false);
     disconnect(exportAction, SIGNAL(triggered()), 0, 0);
