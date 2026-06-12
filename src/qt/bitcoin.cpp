@@ -21,6 +21,7 @@
 #include <QSplashScreen>
 #include <QLibraryInfo>
 #include <QFile>
+#include <QFont>
 
 #if defined(BITCOIN_NEED_QT_PLUGINS) && !defined(_BITCOIN_QT_PLUGINS_INCLUDED)
 #define _BITCOIN_QT_PLUGINS_INCLUDED
@@ -130,6 +131,11 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     QApplication::setStyle("Fusion");
 
+    QFont appFont = app.font();
+    appFont.setStyleStrategy(static_cast<QFont::StyleStrategy>(
+        appFont.styleStrategy() | QFont::PreferAntialias | QFont::NoSubpixelAntialias));
+    app.setFont(appFont);
+
     QFile styleFile(":/styles/app");
     if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
         app.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
@@ -213,7 +219,12 @@ int main(int argc, char *argv[])
     }
 
     QSplashScreen splash(QPixmap(":/images/splash"), 0);
-    if (GetBoolArg("-splash", true) && !GetBoolArg("-min"))
+#if defined(Q_OS_ANDROID)
+    const bool showSplash = false;
+#else
+    const bool showSplash = GetBoolArg("-splash", true) && !GetBoolArg("-min");
+#endif
+    if (showSplash)
     {
         splash.show();
         splashref = &splash;
@@ -226,8 +237,10 @@ int main(int argc, char *argv[])
     try
     {
         // Regenerate startup link, to fix links to old versions
+#ifndef Q_OS_ANDROID
         if (GUIUtil::GetStartOnSystemStartup())
             GUIUtil::SetStartOnSystemStartup(true);
+#endif
 
         BitcoinGUI window;
         guiref = &window;

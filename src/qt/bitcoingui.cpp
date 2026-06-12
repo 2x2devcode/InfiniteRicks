@@ -426,7 +426,10 @@ void BitcoinGUI::setWalletModel(WalletModel *walletModel)
 void BitcoinGUI::createTrayIcon()
 {
     QMenu *trayIconMenu;
-#ifndef Q_OS_MAC
+#if defined(Q_OS_ANDROID)
+    notificator = new Notificator(qApp->applicationName(), 0);
+    return;
+#elif !defined(Q_OS_MAC)
     trayIcon = new QSystemTrayIcon(this);
     trayIconMenu = new QMenu(this);
     trayIcon->setContextMenu(trayIconMenu);
