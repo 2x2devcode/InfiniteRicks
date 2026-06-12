@@ -17,9 +17,11 @@ The script will:
 4. Cross-compile OpenSSL, Berkeley DB, and Boost for the target ABI (16 KB page-size flags on arm64)
 5. Build the Qt wallet, package an APK with `androiddeployqt`, align, and **sign** it
 
-**Install this file on the device:**
+**Install this file on the device (version 204, ~40 MB):**
 
-`./android-build/InfiniteRicks-wallet-release.apk`
+`./android-build/InfiniteRicks-wallet-android15-v204-arm64.apk`
+
+Before installing, confirm the APK is **about 40 MB**. If Android reports **~15–20 MB**, you still have an old build without the 16 KB `libc++` fix and the app will crash on Android 15 (`qtMainLoopThread`).
 
 ## Android 15 compatibility
 

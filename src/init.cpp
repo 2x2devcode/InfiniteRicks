@@ -213,7 +213,11 @@ bool static InitError(const std::string &str)
 
 bool static InitWarning(const std::string &str)
 {
+#if defined(__ANDROID__)
+    fprintf(stderr, "InitWarning: %s\n", str.c_str());
+#else
     uiInterface.ThreadSafeMessageBox(str, _("InfiniteRicks"), CClientUIInterface::OK | CClientUIInterface::ICON_EXCLAMATION | CClientUIInterface::MODAL);
+#endif
     return true;
 }
 
@@ -919,11 +923,13 @@ bool AppInit2()
     printf("mapWallet.size() = %" PRIszu "\n",       pwalletMain->mapWallet.size());
     printf("mapAddressBook.size() = %" PRIszu "\n",  pwalletMain->mapAddressBook.size());
 
+#if !defined(__ANDROID__)
     if (!NewThread(StartNode, NULL))
         InitError(_("Error: could not start node"));
 
     if (fServer)
         NewThread(ThreadRPCServer, NULL);
+#endif
 
     // ********************************************************* Step 12: finished
 
@@ -943,5 +949,16 @@ bool AppInit2()
         MilliSleep(5000);
 #endif
 
+    return true;
+}
+
+bool StartNodeThread()
+{
+    if (!NewThread(StartNode, NULL)) {
+        InitError(_("Error: could not start node"));
+        return false;
+    }
+    if (fServer)
+        NewThread(ThreadRPCServer, NULL);
     return true;
 }

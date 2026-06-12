@@ -6,6 +6,7 @@
 #include <QMessageBox>
 
 QT_BEGIN_NAMESPACE
+class QApplication;
 class QFont;
 class QLineEdit;
 class QWidget;
@@ -26,6 +27,11 @@ namespace GUIUtil
 
     // Render Bitcoin addresses in monospace font
     QFont bitcoinAddressFont();
+
+    // Crisp text on Windows (avoid ClearType/subpixel fringe that looks like shadows)
+    QFont clearTypeFreeFont(const QFont &base = QFont());
+    void applyApplicationFont(QApplication &app);
+    void fixWidgetFonts(QWidget *root);
 
     // Set up widgets for address and amounts
     void setupAddressWidget(QLineEdit *widget, QWidget *parent);

@@ -71,6 +71,35 @@ QFont bitcoinAddressFont()
     return font;
 }
 
+QFont clearTypeFreeFont(const QFont &base)
+{
+    QFont font = base.family().isEmpty() ? QApplication::font() : base;
+#ifdef Q_OS_WIN
+    font.setFamily("Segoe UI");
+#endif
+    font.setStyleStrategy(static_cast<QFont::StyleStrategy>(
+        font.styleStrategy() | QFont::PreferAntialias | QFont::NoSubpixelAntialias | QFont::PreferQuality));
+    font.setHintingPreference(QFont::PreferNoHinting);
+    return font;
+}
+
+void applyApplicationFont(QApplication &app)
+{
+    app.setFont(clearTypeFreeFont(app.font()));
+}
+
+void fixWidgetFonts(QWidget *root)
+{
+    if (!root)
+        return;
+
+    root->setFont(clearTypeFreeFont(root->font()));
+    foreach (QObject *child, root->children()) {
+        if (QWidget *widget = qobject_cast<QWidget *>(child))
+            fixWidgetFonts(widget);
+    }
+}
+
 void setupAddressWidget(QLineEdit *widget, QWidget *parent)
 {
     widget->setMaxLength(BitcoinAddressValidator::MaxAddressLength);
