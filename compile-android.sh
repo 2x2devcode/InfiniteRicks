@@ -17,7 +17,8 @@ REPO_ROOT="$SCRIPT_DIR"
 
 ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-28}"
 ANDROID_BUILD_TOOLS="${ANDROID_BUILD_TOOLS:-30.0.3}"
-ANDROID_COMPILE_SDK="${ANDROID_COMPILE_SDK:-30}"
+ANDROID_SIGN_BUILD_TOOLS="${ANDROID_SIGN_BUILD_TOOLS:-34.0.0}"
+ANDROID_COMPILE_SDK="${ANDROID_COMPILE_SDK:-34}"
 NDK_VERSION="${ANDROID_NDK_VERSION:-23.2.8568313}"
 QT_VERSION="${QT_VERSION:-5.15.2}"
 ABI="${ANDROID_ABI:-arm64-v8a}"
@@ -62,6 +63,8 @@ Environment variables:
   QT_ANDROID_ROOT    Qt for Android install (default: ~/.infinite-ricks/Qt/<version>/android)
   ANDROID_OUTPUT_DIR Output directory (default: ./android-build)
   ANDROID_API_LEVEL  Minimum platform API (default: 28)
+  ANDROID_KEYSTORE   Keystore for APK signing (default: ~/.infinite-ricks/android-release.keystore)
+  ANDROID_KEYSTORE_PASS / ANDROID_KEY_ALIAS  Keystore credentials (default: infinitericks)
 EOF
 }
 
@@ -219,6 +222,7 @@ setup_android_sdk() {
         "platform-tools" \
         "platforms;android-${ANDROID_COMPILE_SDK}" \
         "build-tools;${ANDROID_BUILD_TOOLS}" \
+        "build-tools;${ANDROID_SIGN_BUILD_TOOLS}" \
         "ndk;${NDK_VERSION}"
 
     [[ -d "$NDK_DIR" ]] || die "Android NDK not found at $NDK_DIR"
@@ -289,6 +293,14 @@ android_clangxx() {
     esac
 }
 
+android_page_size_ldflags() {
+    # Android 15+ devices may use 16 KB memory pages; arm64 native code must be linked accordingly.
+    case "$ABI" in
+        arm64-v8a) echo "-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384" ;;
+        *) echo "" ;;
+    esac
+}
+
 android_host_triplet() {
     # Berkeley DB 5.3 config.sub does not know *-linux-android; use GNU triplets.
     case "$ABI" in
@@ -309,9 +321,11 @@ setup_android_toolchain_env() {
     export AR="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
     export RANLIB="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib"
     export STRIP="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+    local page_ldflags
+    page_ldflags="$(android_page_size_ldflags)"
     export CFLAGS="-fPIC -DANDROID -D__ANDROID_API__=${ANDROID_API_LEVEL}"
     export CXXFLAGS="-fPIC -DANDROID -D__ANDROID_API__=${ANDROID_API_LEVEL} -std=c++14"
-    export LDFLAGS="-fPIC"
+    export LDFLAGS="-fPIC ${page_ldflags}"
 }
 
 build_openssl_android() {
@@ -339,7 +353,8 @@ build_openssl_android() {
     ./Configure "$openssl_target" \
         -D__ANDROID_API__="$ANDROID_API_LEVEL" \
         --prefix="$DEPS_DIR" \
-        no-shared no-tests
+        no-shared no-tests \
+        ${LDFLAGS:+-ldflags "$LDFLAGS"}
     make -j"$JOBS" build_libs
     make install_dev
     popd >/dev/null
@@ -405,7 +420,8 @@ build_berkeley_db_android() {
         AR="$AR" \
         RANLIB="$RANLIB" \
         CFLAGS="-fPIC -DANDROID" \
-        CXXFLAGS="-fPIC -DANDROID -std=gnu++11"
+        CXXFLAGS="-fPIC -DANDROID -std=gnu++11" \
+        LDFLAGS="$LDFLAGS"
     if ! grep -q '^#define HAVE_CXX_STDHEADERS' db_cxx.h 2>/dev/null; then
         sed -i '/#ifdef HAVE_CXX_STDHEADERS/i#define HAVE_CXX_STDHEADERS 1' db_cxx.h 2>/dev/null || true
     fi
@@ -438,11 +454,16 @@ build_boost_android() {
 
     log "Building Boost ${BOOST_VERSION} for ${ABI}"
     pushd "$src_dir" >/dev/null
+    local page_ldflags boost_linkflags=""
+    page_ldflags="$(android_page_size_ldflags)"
+    for flag in $page_ldflags; do
+        boost_linkflags+=" <linkflags>${flag}"
+    done
     cat > user-config.jam <<EOF
 using clang : android
     : $(android_clangxx)
     : <compileflags>-fPIC <compileflags>-DANDROID <compileflags>-D__ANDROID_API__=${ANDROID_API_LEVEL}
-      <linkflags>-fPIC <linkflags>-static-libstdc++
+      <linkflags>-fPIC <linkflags>-static-libstdc++${boost_linkflags}
     ;
 EOF
     ./bootstrap.sh --prefix="$DEPS_DIR"
@@ -466,10 +487,71 @@ EOF
 
 build_android_dependencies() {
     [[ "$BUILD_DEPS" -eq 1 ]] || return 0
+    if [[ "$ABI" == "arm64-v8a" && -d "$DEPS_DIR/lib" && ! -f "$DEPS_DIR/.page-size-16kb" ]]; then
+        log "Removing stale arm64 dependency build (rebuild required for Android 15 / 16 KB page size)"
+        rm -rf "$DEPS_DIR"
+    fi
     setup_android_toolchain_env
     build_openssl_android
     build_berkeley_db_android
     build_boost_android
+    [[ "$ABI" == "arm64-v8a" ]] && touch "$DEPS_DIR/.page-size-16kb"
+}
+
+ensure_android_keystore() {
+    local keystore="${ANDROID_KEYSTORE:-$HOME/.infinite-ricks/android-release.keystore}"
+    local ks_pass="${ANDROID_KEYSTORE_PASS:-infinitericks}"
+    local key_alias="${ANDROID_KEY_ALIAS:-infinitericks}"
+
+    if [[ -f "$keystore" ]]; then
+        printf '%s' "$keystore"
+        return 0
+    fi
+
+    printf '\n==> Creating Android signing keystore at %s\n' "$keystore" >&2
+    mkdir -p "$(dirname "$keystore")"
+    keytool -genkeypair -v \
+        -keystore "$keystore" \
+        -storepass "$ks_pass" \
+        -alias "$key_alias" \
+        -keypass "$ks_pass" \
+        -keyalg RSA -keysize 2048 -validity 10000 \
+        -dname "CN=InfiniteRicks Wallet, OU=Mobile, O=InfiniteRicks, C=US" \
+        >/dev/null 2>&1
+    printf '%s' "$keystore"
+}
+
+sign_apk() {
+    local unsigned_apk="$1"
+    local signed_apk="$2"
+    local keystore ks_pass key_alias apksigner zipalign
+
+    keystore="$(ensure_android_keystore)"
+    ks_pass="${ANDROID_KEYSTORE_PASS:-infinitericks}"
+    key_alias="${ANDROID_KEY_ALIAS:-infinitericks}"
+    apksigner="$SDK_DIR/build-tools/${ANDROID_SIGN_BUILD_TOOLS}/apksigner"
+    zipalign="$SDK_DIR/build-tools/${ANDROID_SIGN_BUILD_TOOLS}/zipalign"
+    [[ -x "$apksigner" ]] || die "apksigner not found: $apksigner (install build-tools;${ANDROID_SIGN_BUILD_TOOLS})"
+    [[ -x "$zipalign" ]] || die "zipalign not found: $zipalign"
+
+    local aligned_apk="${unsigned_apk%.apk}-aligned.apk"
+
+    log "Aligning APK"
+    rm -f "$aligned_apk"
+    "$zipalign" -f -p 4 "$unsigned_apk" "$aligned_apk"
+
+    log "Signing APK"
+    rm -f "$signed_apk"
+    "$apksigner" sign \
+        --ks "$keystore" \
+        --ks-pass "pass:${ks_pass}" \
+        --key-pass "pass:${ks_pass}" \
+        --ks-key-alias "$key_alias" \
+        --out "$signed_apk" \
+        "$aligned_apk"
+
+    "$apksigner" verify --verbose "$signed_apk" >/dev/null
+    rm -f "$aligned_apk"
 }
 
 host_lrelease() {
@@ -568,12 +650,15 @@ build_apk() {
 
     popd >/dev/null
 
-    local apk_file dest_apk
-    apk_file="$(find "$OUTPUT_DIR" -name '*.apk' | head -1)"
+    local apk_file unsigned_apk signed_apk
+    apk_file="$(find "$OUTPUT_DIR/build/outputs/apk" -name '*.apk' 2>/dev/null | head -1)"
     [[ -n "$apk_file" ]] || die "APK was not generated — check $OUTPUT_DIR build logs"
-    dest_apk="$OUTPUT_DIR/InfiniteRicks-wallet-${apk_mode}-unsigned.apk"
-    cp -f "$apk_file" "$dest_apk"
-    log "APK: $dest_apk"
+    unsigned_apk="$OUTPUT_DIR/InfiniteRicks-wallet-${apk_mode}-unsigned.apk"
+    signed_apk="$OUTPUT_DIR/InfiniteRicks-wallet-${apk_mode}.apk"
+    cp -f "$apk_file" "$unsigned_apk"
+    sign_apk "$unsigned_apk" "$signed_apk"
+    log "Signed APK (install this on Android 15+): $signed_apk"
+    log "Unsigned copy kept at: $unsigned_apk"
 }
 
 print_summary() {
