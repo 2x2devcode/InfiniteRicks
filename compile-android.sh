@@ -20,6 +20,8 @@ ANDROID_BUILD_TOOLS="${ANDROID_BUILD_TOOLS:-30.0.3}"
 ANDROID_SIGN_BUILD_TOOLS="${ANDROID_SIGN_BUILD_TOOLS:-34.0.0}"
 ANDROID_COMPILE_SDK="${ANDROID_COMPILE_SDK:-34}"
 NDK_VERSION="${ANDROID_NDK_VERSION:-23.2.8568313}"
+# NDK r27+ ships libc++_shared.so with 16 KB ELF alignment (required on Android 15 devices).
+NDK_LIBCXX_VERSION="${ANDROID_NDK_LIBCXX_VERSION:-27.0.12077973}"
 QT_VERSION="${QT_VERSION:-5.15.2}"
 ABI="${ANDROID_ABI:-arm64-v8a}"
 
@@ -223,7 +225,8 @@ setup_android_sdk() {
         "platforms;android-${ANDROID_COMPILE_SDK}" \
         "build-tools;${ANDROID_BUILD_TOOLS}" \
         "build-tools;${ANDROID_SIGN_BUILD_TOOLS}" \
-        "ndk;${NDK_VERSION}"
+        "ndk;${NDK_VERSION}" \
+        "ndk;${NDK_LIBCXX_VERSION}"
 
     [[ -d "$NDK_DIR" ]] || die "Android NDK not found at $NDK_DIR"
     export ANDROID_NDK_ROOT="$NDK_DIR"
@@ -521,6 +524,44 @@ ensure_android_keystore() {
     printf '%s' "$keystore"
 }
 
+ndk_libcxx_shared_path() {
+    local ndk_libcxx_dir="$SDK_DIR/ndk/$NDK_LIBCXX_VERSION"
+    case "$ABI" in
+        arm64-v8a)
+            echo "$ndk_libcxx_dir/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
+            ;;
+        armeabi-v7a)
+            echo "$ndk_libcxx_dir/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so"
+            ;;
+        x86_64)
+            echo "$ndk_libcxx_dir/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/libc++_shared.so"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+patch_apk_libcxx_16k() {
+    local apk="$1"
+    local libcxx_src
+
+    [[ "$ABI" == "arm64-v8a" ]] || return 0
+    libcxx_src="$(ndk_libcxx_shared_path)"
+    [[ -f "$libcxx_src" ]] || die "16 KB libc++_shared.so not found (install NDK ${NDK_LIBCXX_VERSION}): $libcxx_src"
+
+    log "Patching APK with 16 KB aligned libc++_shared.so (NDK ${NDK_LIBCXX_VERSION})"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    unzip -q -o "$apk" -d "$tmpdir"
+    local dest="$tmpdir/lib/${ABI}/libc++_shared.so"
+    [[ -f "$dest" ]] || die "APK does not contain libc++_shared.so for ${ABI}"
+    cp -f "$libcxx_src" "$dest"
+    rm -f "$apk"
+    (cd "$tmpdir" && zip -q -r -0 "$apk" .)
+    rm -rf "$tmpdir"
+}
+
 sign_apk() {
     local unsigned_apk="$1"
     local signed_apk="$2"
@@ -538,7 +579,11 @@ sign_apk() {
 
     log "Aligning APK"
     rm -f "$aligned_apk"
-    "$zipalign" -f -p 4 "$unsigned_apk" "$aligned_apk"
+    if [[ "$ABI" == "arm64-v8a" ]]; then
+        "$zipalign" -f -p 16 "$unsigned_apk" "$aligned_apk"
+    else
+        "$zipalign" -f -p 4 "$unsigned_apk" "$aligned_apk"
+    fi
 
     log "Signing APK"
     rm -f "$signed_apk"
@@ -656,6 +701,7 @@ build_apk() {
     unsigned_apk="$OUTPUT_DIR/InfiniteRicks-wallet-${apk_mode}-unsigned.apk"
     signed_apk="$OUTPUT_DIR/InfiniteRicks-wallet-${apk_mode}.apk"
     cp -f "$apk_file" "$unsigned_apk"
+    patch_apk_libcxx_16k "$unsigned_apk"
     sign_apk "$unsigned_apk" "$signed_apk"
     log "Signed APK (install this on Android 15+): $signed_apk"
     log "Unsigned copy kept at: $unsigned_apk"
