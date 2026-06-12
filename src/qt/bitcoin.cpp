@@ -126,10 +126,18 @@ static void handleRunawayException(std::exception *e)
 #endif
 }
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+__attribute__((constructor(101))) static void ir_library_loaded()
+{
+    __android_log_print(ANDROID_LOG_INFO, "InfiniteRicks", "native library loaded (v204)");
+}
+#endif
+
 #ifndef BITCOIN_QT_TEST
 int main(int argc, char *argv[])
 {
-    IR_LOGI("main() starting");
+    IR_LOGI("main() starting (v204)");
     // Do this early as we don't want to bother initializing if we are just calling IPC
 #ifndef Q_OS_ANDROID
     ipcScanRelay(argc, argv);
@@ -142,21 +150,23 @@ int main(int argc, char *argv[])
 #endif
 
     Q_INIT_RESOURCE(bitcoin);
+#if defined(Q_OS_WIN)
+    // DirectWrite subpixel antialiasing looks like a drop shadow on dark sidebars.
+    qputenv("QT_QPA_PLATFORM", "windows:fontengine=freetype");
+    QApplication::setDesktopSettingsAware(false);
+#endif
     QApplication app(argc, argv);
 #if !defined(Q_OS_ANDROID)
     QApplication::setStyle("Fusion");
 #endif
-
-    QFont appFont = app.font();
-    appFont.setStyleStrategy(static_cast<QFont::StyleStrategy>(
-        appFont.styleStrategy() | QFont::PreferAntialias | QFont::NoSubpixelAntialias));
-    app.setFont(appFont);
 
     QFile styleFile(":/styles/app");
     if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
         app.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
         styleFile.close();
     }
+
+    GUIUtil::applyApplicationFont(app);
 
     // Install global event filter that makes sure that long tooltips can be word-wrapped
     app.installEventFilter(new GUIUtil::ToolTipToRichTextFilter(TOOLTIP_WRAP_THRESHOLD, &app));
@@ -298,6 +308,8 @@ int main(int argc, char *argv[])
                 {
                     window.show();
                 }
+
+                GUIUtil::fixWidgetFonts(&window);
 
 #if defined(Q_OS_ANDROID)
                 IR_LOGI("starting P2P node");

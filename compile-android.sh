@@ -542,6 +542,24 @@ ndk_libcxx_shared_path() {
     esac
 }
 
+verify_apk_android15() {
+    local apk="$1"
+    local size libcxx_apk
+    size="$(stat -c%s "$apk")"
+    if (( size < 35000000 )); then
+        die "APK is only $((size / 1024 / 1024)) MB ($size bytes). Expected ~40 MB with 16 KB libc++ patch. Do not install this build on Android 15."
+    fi
+
+    libcxx_apk="$(mktemp)"
+    unzip -p "$apk" "lib/${ABI}/libc++_shared.so" > "$libcxx_apk" 2>/dev/null || die "APK missing lib/${ABI}/libc++_shared.so"
+    if ! readelf -lW "$libcxx_apk" | grep -q '0x4000'; then
+        rm -f "$libcxx_apk"
+        die "libc++_shared.so in APK is not 16 KB aligned (readelf Align 0x4000). Android 15 will crash."
+    fi
+    rm -f "$libcxx_apk"
+    log "APK verified for Android 15 ($((size / 1024 / 1024)) MB, libc++ Align 0x4000)"
+}
+
 patch_apk_libcxx_16k() {
     local apk="$1"
     local libcxx_src
@@ -703,8 +721,15 @@ build_apk() {
     cp -f "$apk_file" "$unsigned_apk"
     patch_apk_libcxx_16k "$unsigned_apk"
     sign_apk "$unsigned_apk" "$signed_apk"
+    verify_apk_android15 "$signed_apk"
+
+    local friendly_apk="$OUTPUT_DIR/InfiniteRicks-wallet-android15-v204-arm64.apk"
+    cp -f "$signed_apk" "$friendly_apk"
+
     log "Signed APK (install this on Android 15+): $signed_apk"
+    log "Same build, friendly name: $friendly_apk"
     log "Unsigned copy kept at: $unsigned_apk"
+    printf '\n*** Android 15: APK must be ~40 MB. If your phone shows ~15-20 MB, you have the OLD build. ***\n'
 }
 
 print_summary() {
