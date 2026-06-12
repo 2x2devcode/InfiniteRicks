@@ -16,6 +16,7 @@ class SendCoinsDialog;
 class SignVerifyMessageDialog;
 class Notificator;
 class RPCConsole;
+class AndroidBottomNav;
 
 QT_BEGIN_NAMESPACE
 class QLabel;
@@ -102,6 +103,8 @@ private:
     RPCConsole *rpcConsole;
 
     QMovie *syncIconMovie;
+
+    AndroidBottomNav *androidBottomNav;
 
     uint64_t nWeight;
 

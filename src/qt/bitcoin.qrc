@@ -53,6 +53,7 @@
     </qresource>
     <qresource prefix="/styles">
         <file alias="app">res/styles/app.qss</file>
+        <file alias="app-android">res/styles/app-android.qss</file>
     </qresource>
     <qresource prefix="/translations">
         <file alias="ar">locale/bitcoin_ar.qm</file>

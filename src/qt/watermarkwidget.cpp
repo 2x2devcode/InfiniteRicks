@@ -15,10 +15,18 @@ WatermarkWidget::WatermarkWidget(QWidget *parent) :
 
     watermarkLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
     watermarkLabel->setAlignment(Qt::AlignCenter);
+#if defined(Q_OS_ANDROID)
+    watermarkLabel->hide();
+#else
     watermarkLabel->setPixmap(GUIUtil::fadedPixmap(QPixmap(":/images/splash"), 0.10));
+#endif
 
     QVBoxLayout *layout = new QVBoxLayout(this);
+#if defined(Q_OS_ANDROID)
+    layout->setContentsMargins(0, 0, 0, 0);
+#else
     layout->setContentsMargins(12, 12, 12, 12);
+#endif
     layout->addWidget(stack);
 
     stack->setAutoFillBackground(false);
@@ -33,6 +41,10 @@ QStackedWidget *WatermarkWidget::stackedWidget() const
 void WatermarkWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+
+#if defined(Q_OS_ANDROID)
+    return;
+#endif
 
     const int wmSize = qMin(width(), height()) * 0.55;
     QPixmap base = GUIUtil::fadedPixmap(QPixmap(":/images/splash"), 0.10);

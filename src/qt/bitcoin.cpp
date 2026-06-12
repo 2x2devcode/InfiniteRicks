@@ -130,14 +130,14 @@ static void handleRunawayException(std::exception *e)
 #include <android/log.h>
 __attribute__((constructor(101))) static void ir_library_loaded()
 {
-    __android_log_print(ANDROID_LOG_INFO, "InfiniteRicks", "native library loaded (v205)");
+    __android_log_print(ANDROID_LOG_INFO, "InfiniteRicks", "native library loaded (v206)");
 }
 #endif
 
 #ifndef BITCOIN_QT_TEST
 int main(int argc, char *argv[])
 {
-    IR_LOGI("main() starting (v205) argc=%d", argc);
+    IR_LOGI("main() starting (v206) argc=%d", argc);
     // Do this early as we don't want to bother initializing if we are just calling IPC
 #ifndef Q_OS_ANDROID
     ipcScanRelay(argc, argv);
@@ -163,7 +163,12 @@ int main(int argc, char *argv[])
     QApplication::setStyle("Fusion");
 #endif
 
-    QFile styleFile(":/styles/app");
+#if defined(Q_OS_ANDROID)
+    const char *styleResource = ":/styles/app-android";
+#else
+    const char *styleResource = ":/styles/app";
+#endif
+    QFile styleFile(styleResource);
     if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
         app.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
         styleFile.close();

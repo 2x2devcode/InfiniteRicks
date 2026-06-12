@@ -5,6 +5,9 @@
 
 QT_BEGIN_NAMESPACE
 class QModelIndex;
+class QLabel;
+class QWidget;
+class QToolButton;
 QT_END_NAMESPACE
 
 namespace Ui {
@@ -27,6 +30,12 @@ public:
     void showOutOfSyncWarning(bool fShow);
     void updateSyncStatus(int count, int total, bool showProgress, const QString &statusText);
 
+signals:
+    void quickSendClicked();
+    void quickReceiveClicked();
+    void quickHistoryClicked();
+    void quickSettingsClicked();
+
 public slots:
     void setBalance(__int128 balance, __int128 stake, __int128 unconfirmedBalance, __int128 immatureBalance);
 
@@ -43,6 +52,12 @@ private:
 
     TxViewDelegate *txdelegate;
     TransactionFilterProxy *filter;
+
+    QLabel *labelHeroBalance;
+    QLabel *labelBalanceChange;
+    QLabel *labelUnitBadge;
+
+    void setupAndroidLayout();
 
 private slots:
     void updateDisplayUnit();
