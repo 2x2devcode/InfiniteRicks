@@ -29,7 +29,7 @@ AndroidBottomNav::AndroidBottomNav(QWidget *parent) :
         QToolButton *button = buttons[i];
         button->setObjectName("androidNavButton");
         button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-        button->setIconSize(QSize(24, 24));
+        button->setIconSize(QSize(30, 30));
         button->setIcon(QIcon(icons[i]));
         button->setText(tr(labels[i]));
         button->setCheckable(true);
