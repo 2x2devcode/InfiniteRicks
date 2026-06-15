@@ -374,7 +374,7 @@ void OverviewPage::setupAndroidLayout()
         QToolButton *button = new QToolButton(quickActions);
         button->setObjectName(actionObjectNames[i]);
         button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-        button->setIconSize(QSize(22, 22));
+        button->setIconSize(QSize(30, 30));
         button->setIcon(QIcon(actions[i].icon));
         button->setText(tr(actions[i].label));
         if (i == 0)

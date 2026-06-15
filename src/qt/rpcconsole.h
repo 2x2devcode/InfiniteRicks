@@ -37,6 +37,7 @@ private slots:
     void on_openDebugLogfileButton_clicked();
     /** display messagebox with program parameters (same as bitcoin-qt --help) */
     void on_showCLOptionsButton_clicked();
+    void on_closeButton_clicked();
 
 public slots:
     void clear();
