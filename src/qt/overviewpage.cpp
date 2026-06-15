@@ -22,6 +22,7 @@
 #include <QFrame>
 #include <QPixmap>
 #include <QIcon>
+#include <QPalette>
 
 #define DECORATION_SIZE OVERVIEW_TX_ICON_SIZE
 #define NUM_ITEMS 5
@@ -140,6 +141,31 @@ OverviewPage::OverviewPage(QWidget *parent) :
     showOutOfSyncWarning(true);
     ui->frameSync->setVisible(false);
 
+#if !defined(Q_OS_ANDROID)
+    ui->label_4->setText(tr("Recent transactions"));
+    QFont sectionFont = GUIUtil::clearTypeFreeFont(ui->label_4->font());
+    sectionFont.setBold(true);
+    ui->label_4->setFont(sectionFont);
+    ui->label_5->setFont(GUIUtil::clearTypeFreeFont(ui->label_5->font()));
+
+    foreach (QLabel *label, findChildren<QLabel*>()) {
+        label->setFont(GUIUtil::clearTypeFreeFont(label->font()));
+        label->setAutoFillBackground(true);
+        QPalette pal = label->palette();
+        pal.setColor(QPalette::Window, QColor(0xffffff));
+        pal.setColor(QPalette::WindowText, QColor(0x1f2933));
+        label->setPalette(pal);
+    }
+
+    ui->frame->setAutoFillBackground(true);
+    ui->frame_2->setAutoFillBackground(true);
+    QPalette framePal;
+    framePal.setColor(QPalette::Window, QColor(0xffffff));
+    ui->frame->setPalette(framePal);
+    ui->frame_2->setPalette(framePal);
+    GUIUtil::fixWidgetFonts(this);
+#endif
+
 #if defined(Q_OS_ANDROID)
     setupAndroidLayout();
 #endif
@@ -250,6 +276,13 @@ void OverviewPage::showOutOfSyncWarning(bool fShow)
 
 void OverviewPage::updateSyncStatus(int count, int total, bool showProgress, const QString &statusText)
 {
+#if defined(Q_OS_ANDROID)
+    Q_UNUSED(count);
+    Q_UNUSED(total);
+    Q_UNUSED(showProgress);
+    Q_UNUSED(statusText);
+    return;
+#else
     ui->frameSync->setVisible(showProgress);
     if (!showProgress)
         return;
@@ -262,11 +295,15 @@ void OverviewPage::updateSyncStatus(int count, int total, bool showProgress, con
     } else {
         ui->progressBarSync->setFormat(QString());
     }
+#endif
 }
 
 #if defined(Q_OS_ANDROID)
 void OverviewPage::setupAndroidLayout()
 {
+    ui->frameSync->hide();
+    ui->verticalLayoutMain->removeWidget(ui->frameSync);
+
     ui->verticalLayoutMain->setContentsMargins(16, 12, 16, 8);
     ui->verticalLayoutMain->setSpacing(14);
 
