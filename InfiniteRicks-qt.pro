@@ -501,7 +501,7 @@ android {
     ANDROID_MIN_SDK_VERSION = 24
     ANDROID_TARGET_SDK_VERSION = 34
     ANDROID_APP_NAME = InfiniteRicks Wallet
-    ANDROID_VERSION_CODE = 208
+    ANDROID_VERSION_CODE = 209
     # Android 15+ may use 16 KB memory pages on arm64 devices.
     QMAKE_LFLAGS += -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
     ANDROID_VERSION_NAME = $$VERSION

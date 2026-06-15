@@ -67,6 +67,17 @@ QFrame#frame, QFrame#frame_2, QFrame#frameSync {
     border-radius: 6px;
 }
 
+QFrame#frame QLabel,
+QFrame#frame_2 QLabel {
+    background-color: #ffffff;
+    color: #1f2933;
+    border: none;
+}
+
+QLabel#label_5, QLabel#label_4 {
+    background-color: #ffffff;
+}
+
 QFrame#frameSync {
     border-left: 4px solid #5eae4c;
 }
