@@ -1,17 +1,17 @@
-/* InfiniteRicks Android — modern wallet UI (green #5EAE4C, dark theme). */
+/* InfiniteRicks Android — wallettest-inspired layout, green accent #5EAE4C */
 
 * {
     font-family: sans-serif;
 }
 
 QWidget {
-    background-color: #121418;
-    color: #f0f2f5;
+    background-color: #050B13;
+    color: #FFFFFF;
     font-size: 10pt;
 }
 
 QMainWindow {
-    background-color: #121418;
+    background-color: #050B13;
 }
 
 QMainWindow::separator {
@@ -20,7 +20,7 @@ QMainWindow::separator {
 }
 
 QWidget#contentArea {
-    background-color: #121418;
+    background-color: #050B13;
 }
 
 QStackedWidget {
@@ -33,14 +33,14 @@ QWidget#androidHeader {
 }
 
 QLabel#androidHeaderTitle {
-    color: #ffffff;
+    color: #FFFFFF;
     font-size: 16pt;
     font-weight: 700;
     background: transparent;
 }
 
 QLabel#androidHeaderLogo {
-    background: #1e2228;
+    background: #00182A;
     border-radius: 22px;
     min-width: 44px;
     max-width: 44px;
@@ -48,28 +48,28 @@ QLabel#androidHeaderLogo {
     max-height: 44px;
 }
 
-/* Balance hero card */
+/* Balance hero card (gradient painted in BalanceCardWidget) */
 QFrame#balanceHeroCard {
-    background-color: #5eae4c;
+    background: transparent;
     border: none;
     border-radius: 22px;
     padding: 4px;
 }
 
 QFrame#balanceHeroCard QLabel {
-    color: #ffffff;
+    color: #FFFFFF;
     background: transparent;
     border: none;
 }
 
 QLabel#labelBalanceCaption {
-    color: rgba(255, 255, 255, 0.85);
+    color: rgba(255, 255, 255, 0.88);
     font-size: 10pt;
 }
 
 QLabel#labelUnitBadge {
-    background-color: rgba(0, 0, 0, 0.18);
-    color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.22);
+    color: #FFFFFF;
     border-radius: 10px;
     padding: 2px 10px;
     font-size: 8pt;
@@ -77,13 +77,13 @@ QLabel#labelUnitBadge {
 }
 
 QLabel#labelHeroBalance {
-    font-size: 22pt;
+    font-size: 24pt;
     font-weight: 700;
 }
 
 QLabel#labelBalanceChange {
-    background-color: rgba(255, 255, 255, 0.16);
-    color: #e8ffe3;
+    background-color: rgba(255, 255, 255, 0.14);
+    color: #E8FFE3;
     border-radius: 12px;
     padding: 4px 10px;
     font-size: 9pt;
@@ -98,7 +98,7 @@ QPushButton#heroSettingsButton {
     min-height: 36px;
     max-height: 36px;
     padding: 0;
-    color: #ffffff;
+    color: #FFFFFF;
 }
 
 QPushButton#heroSettingsButton:pressed {
@@ -110,53 +110,87 @@ QWidget#quickActionsRow {
     background: transparent;
 }
 
-QToolButton#quickActionButton {
-    background: #1e2228;
-    border: 1px solid #2a3038;
+QToolButton#quickActionSend {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #F68B35, stop:1 #E63946);
+    border: none;
+    border-radius: 20px;
+    padding: 12px 8px 10px 8px;
+    color: #FFFFFF;
+    font-size: 8pt;
+    font-weight: 600;
+}
+
+QToolButton#quickActionSend:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #E07A2E, stop:1 #CC3340);
+}
+
+QToolButton#quickActionReceive {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #4D9A3E, stop:1 #5EAE4C);
+    border: none;
+    border-radius: 20px;
+    padding: 12px 8px 10px 8px;
+    color: #FFFFFF;
+    font-size: 8pt;
+    font-weight: 600;
+}
+
+QToolButton#quickActionReceive:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #3D7A32, stop:1 #4D9A3E);
+}
+
+QToolButton#quickActionHistory,
+QToolButton#quickActionMore {
+    background: #00182A;
+    border: 1px solid #0F2A3D;
     border-radius: 18px;
     padding: 10px 6px 8px 6px;
-    color: #e8ebef;
+    color: #FFFFFF;
     font-size: 8pt;
 }
 
-QToolButton#quickActionButton:pressed {
-    background: #2a3038;
+QToolButton#quickActionHistory:pressed,
+QToolButton#quickActionMore:pressed {
+    background: #0F2A3D;
 }
 
-/* Wallet details / assets cards */
+/* Assets / activity card */
 QFrame#walletDetailsCard, QFrame#assetsCard {
-    background-color: #1a1e24;
-    border: 1px solid #2a3038;
+    background-color: #00182A;
+    border: 1px solid #0F2A3D;
     border-radius: 18px;
 }
 
 QFrame#frameSync {
-    background-color: #1a1e24;
-    border: 1px solid #5eae4c;
+    background-color: #00182A;
+    border: 1px solid #5EAE4C;
     border-radius: 14px;
 }
 
 QLabel#assetsSectionTitle {
     font-size: 12pt;
     font-weight: 700;
-    color: #ffffff;
+    color: #FFFFFF;
     background: transparent;
 }
 
 QLabel#assetsFilterLabel {
-    color: #5eae4c;
+    color: #5EAE4C;
     font-weight: 600;
     background: transparent;
 }
 
 QLabel#labelWalletStatus, QLabel#labelTransactionsStatus {
-    color: #f59e0b;
+    color: #F59E0B;
     font-weight: normal;
     background: transparent;
 }
 
 QLabel#labelSyncStatus {
-    color: #5eae4c;
+    color: #5EAE4C;
     background: transparent;
 }
 
@@ -167,122 +201,123 @@ QListView#listTransactions {
 }
 
 QListView#listTransactions::item {
-    background: #23282e;
+    background: #0F2A3D;
     border-radius: 14px;
     padding: 8px;
     margin-bottom: 8px;
 }
 
 QListView#listTransactions::item:selected {
-    background: #2d353f;
+    background: #1A3A52;
 }
 
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
-    background: #1e2228;
-    border: 1px solid #3a4048;
+    background: #00182A;
+    border: 1px solid #0F2A3D;
     border-radius: 12px;
     padding: 10px 12px;
-    color: #f0f2f5;
+    color: #FFFFFF;
     min-height: 1.4em;
 }
 
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus,
 QDoubleSpinBox:focus, QComboBox:focus {
-    border-color: #5eae4c;
+    border-color: #5EAE4C;
 }
 
 QPushButton {
-    background: #1e2228;
-    border: 1px solid #3a4048;
+    background: #00182A;
+    border: 1px solid #0F2A3D;
     border-radius: 12px;
     padding: 10px 16px;
-    color: #f0f2f5;
+    color: #FFFFFF;
     min-height: 1.4em;
 }
 
 QPushButton:pressed {
-    background: #2a3038;
+    background: #0F2A3D;
 }
 
 QPushButton:default {
-    background: #5eae4c;
-    border-color: #5eae4c;
-    color: #ffffff;
+    background: #5EAE4C;
+    border-color: #5EAE4C;
+    color: #FFFFFF;
 }
 
 QTableView, QListView, QTreeView {
-    background: #1a1e24;
-    border: 1px solid #2a3038;
+    background: #00182A;
+    border: 1px solid #0F2A3D;
     border-radius: 14px;
-    alternate-background-color: #1e2228;
-    gridline-color: #2a3038;
-    selection-background-color: #2d4a28;
-    selection-color: #ffffff;
+    alternate-background-color: #0F2A3D;
+    gridline-color: #050B13;
+    selection-background-color: #2D4A28;
+    selection-color: #FFFFFF;
 }
 
 QHeaderView::section {
-    background: #1e2228;
+    background: #0F2A3D;
     border: none;
-    border-bottom: 1px solid #2a3038;
+    border-bottom: 1px solid #050B13;
     padding: 8px;
-    color: #c5cad1;
+    color: #768090;
     font-weight: 600;
 }
 
 QTabWidget::pane {
-    border: 1px solid #2a3038;
+    border: 1px solid #0F2A3D;
     border-radius: 14px;
-    background: #1a1e24;
+    background: #00182A;
 }
 
 QTabBar::tab {
-    background: #1e2228;
-    border: 1px solid #2a3038;
+    background: #0F2A3D;
+    border: 1px solid #1A3A52;
     border-bottom: none;
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
     padding: 8px 14px;
-    color: #9aa3ad;
+    color: #768090;
 }
 
 QTabBar::tab:selected {
-    background: #1a1e24;
-    color: #5eae4c;
+    background: #00182A;
+    color: #5EAE4C;
 }
 
 QProgressBar {
-    border: 1px solid #2a3038;
+    border: 1px solid #0F2A3D;
     border-radius: 8px;
-    background: #1e2228;
+    background: #00182A;
     text-align: center;
-    color: #ffffff;
+    color: #FFFFFF;
     max-height: 18px;
 }
 
 QProgressBar::chunk {
-    background: #5eae4c;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #4D9A3E, stop:1 #5EAE4C);
     border-radius: 7px;
 }
 
 QStatusBar {
-    background: #121418;
-    border-top: 1px solid #1e2228;
-    color: #9aa3ad;
+    background: #050B13;
+    border-top: 1px solid #00182A;
+    color: #768090;
 }
 
 QMenuBar {
-    background: #121418;
-    color: #f0f2f5;
+    background: #050B13;
+    color: #FFFFFF;
 }
 
 QDialog {
-    background: #121418;
+    background: #050B13;
 }
 
 /* Bottom navigation */
 QWidget#androidBottomNav {
-    background-color: #161a20;
-    border-top: 1px solid #2a3038;
+    background-color: #00182A;
+    border-top: 1px solid #050B13;
     min-height: 64px;
     max-height: 64px;
 }
@@ -292,15 +327,15 @@ QToolButton#androidNavButton {
     border: none;
     border-radius: 12px;
     padding: 6px 4px;
-    color: #8b939e;
+    color: #768090;
     font-size: 8pt;
 }
 
 QToolButton#androidNavButton:checked {
-    color: #5eae4c;
-    background: rgba(94, 174, 76, 0.12);
+    color: #5EAE4C;
+    background: rgba(94, 174, 76, 0.14);
 }
 
 QToolButton#androidNavButton:pressed {
-    background: rgba(94, 174, 76, 0.18);
+    background: rgba(94, 174, 76, 0.22);
 }

@@ -8,6 +8,9 @@
 #include "transactionfilterproxy.h"
 #include "guiutil.h"
 #include "guiconstants.h"
+#if defined(Q_OS_ANDROID)
+#include "balancecardwidget.h"
+#endif
 
 #include <QAbstractItemDelegate>
 #include <QPainter>
@@ -71,7 +74,11 @@ public:
         }
         else
         {
+#if defined(Q_OS_ANDROID)
+            foreground = COLOR_POSITIVE;
+#else
             foreground = option.palette.color(QPalette::Text);
+#endif
         }
         painter->setPen(foreground);
         QString amountText = BitcoinUnits::formatWithUnit(unit, amount, true);
@@ -293,7 +300,7 @@ void OverviewPage::setupAndroidLayout()
     bodyLayout->setSpacing(14);
     bodyLayout->setContentsMargins(0, 0, 0, 0);
 
-    ui->frame->setObjectName("balanceHeroCard");
+    ui->frame->hide();
     ui->label_5->setVisible(false);
     ui->labelWalletStatus->setVisible(false);
     ui->line->setVisible(false);
@@ -308,38 +315,37 @@ void OverviewPage::setupAndroidLayout()
     ui->labelImmatureText->setVisible(false);
     ui->labelImmature->setVisible(false);
 
-    QVBoxLayout *heroLayout = ui->verticalLayout_4;
-  heroLayout->insertLayout(0, new QHBoxLayout());
-    QHBoxLayout *heroTop = qobject_cast<QHBoxLayout*>(heroLayout->itemAt(0)->layout());
-    QLabel *caption = new QLabel(tr("Current balance"), ui->frame);
+    BalanceCardWidget *balanceCard = new BalanceCardWidget(this);
+    QVBoxLayout *heroLayout = new QVBoxLayout(balanceCard);
+    heroLayout->setContentsMargins(20, 18, 20, 18);
+    heroLayout->setSpacing(10);
+
+    QHBoxLayout *heroTop = new QHBoxLayout();
+    QLabel *caption = new QLabel(tr("Current balance"), balanceCard);
     caption->setObjectName("labelBalanceCaption");
-    labelUnitBadge = new QLabel(ui->frame);
+    labelUnitBadge = new QLabel(balanceCard);
     labelUnitBadge->setObjectName("labelUnitBadge");
     labelUnitBadge->setText("RICK");
     heroTop->addWidget(caption);
     heroTop->addWidget(labelUnitBadge);
     heroTop->addStretch();
-    QPushButton *settingsButton = new QPushButton(ui->frame);
+    QPushButton *settingsButton = new QPushButton(balanceCard);
     settingsButton->setObjectName("heroSettingsButton");
     settingsButton->setIcon(QIcon(":/icons/options"));
     settingsButton->setToolTip(tr("Settings"));
     connect(settingsButton, SIGNAL(clicked()), this, SIGNAL(quickSettingsClicked()));
     heroTop->addWidget(settingsButton);
+    heroLayout->addLayout(heroTop);
 
-    labelHeroBalance = new QLabel(ui->frame);
+    labelHeroBalance = new QLabel(balanceCard);
     labelHeroBalance->setObjectName("labelHeroBalance");
     labelHeroBalance->setText(ui->labelTotal->text());
-    heroLayout->insertWidget(1, labelHeroBalance);
+    heroLayout->addWidget(labelHeroBalance);
 
-    labelBalanceChange = new QLabel(ui->frame);
+    labelBalanceChange = new QLabel(balanceCard);
     labelBalanceChange->setObjectName("labelBalanceChange");
     labelBalanceChange->setText(tr("Spendable 0 RICK"));
-    heroLayout->insertWidget(2, labelBalanceChange);
-
-    while (heroLayout->count() > 3) {
-        QLayoutItem *item = heroLayout->takeAt(3);
-        delete item;
-    }
+    heroLayout->addWidget(labelBalanceChange);
 
     QWidget *quickActions = new QWidget(this);
     quickActions->setObjectName("quickActionsRow");
@@ -357,10 +363,16 @@ void OverviewPage::setupAndroidLayout()
         { ":/icons/history", QT_TR_NOOP("History") },
         { ":/icons/options", QT_TR_NOOP("More") }
     };
+    const char *actionObjectNames[] = {
+        "quickActionSend",
+        "quickActionReceive",
+        "quickActionHistory",
+        "quickActionMore"
+    };
 
     for (unsigned int i = 0; i < sizeof(actions) / sizeof(actions[0]); ++i) {
         QToolButton *button = new QToolButton(quickActions);
-        button->setObjectName("quickActionButton");
+        button->setObjectName(actionObjectNames[i]);
         button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
         button->setIconSize(QSize(22, 22));
         button->setIcon(QIcon(actions[i].icon));
@@ -386,7 +398,7 @@ void OverviewPage::setupAndroidLayout()
     ui->listTransactions->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     ui->listTransactions->setMinimumHeight(NUM_ITEMS * 58);
 
-    bodyLayout->addWidget(ui->frame);
+    bodyLayout->addWidget(balanceCard);
     bodyLayout->addWidget(quickActions);
     bodyLayout->addWidget(ui->frame_2, 1);
     ui->verticalLayoutMain->addLayout(bodyLayout, 1);

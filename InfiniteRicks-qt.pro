@@ -255,6 +255,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/introdialog.h \
     src/qt/watermarkwidget.h \
     src/qt/androidbottomnav.h \
+    src/qt/balancecardwidget.h \
     src/protocol.h \
     src/qt/notificator.h \
     src/qt/qtipcserver.h \
@@ -326,6 +327,7 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/introdialog.cpp \
     src/qt/watermarkwidget.cpp \
     src/qt/androidbottomnav.cpp \
+    src/qt/balancecardwidget.cpp \
     src/protocol.cpp \
     src/qt/notificator.cpp \
     src/qt/qtipcserver.cpp \
@@ -499,7 +501,7 @@ android {
     ANDROID_MIN_SDK_VERSION = 24
     ANDROID_TARGET_SDK_VERSION = 34
     ANDROID_APP_NAME = InfiniteRicks Wallet
-    ANDROID_VERSION_CODE = 206
+    ANDROID_VERSION_CODE = 207
     # Android 15+ may use 16 KB memory pages on arm64 devices.
     QMAKE_LFLAGS += -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
     ANDROID_VERSION_NAME = $$VERSION
