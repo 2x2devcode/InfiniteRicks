@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ICON_DIR = os.path.join(REPO, "src", "qt", "res", "icons")
 ANDROID_RES = os.path.join(REPO, "src", "qt", "android", "res")
+ANDROID_LAUNCHER_SOURCE = os.path.join(REPO, "src", "qt", "res", "images", "splash.png")
 
 BRAND = (94, 174, 76, 255)
 BRAND_DARK = (77, 154, 62, 255)
@@ -382,10 +383,11 @@ def main():
         "drawable-xxhdpi": 144,
         "drawable-xxxhdpi": 192,
     }
+    launcher = Image.open(ANDROID_LAUNCHER_SOURCE).convert("RGBA")
     for folder, sz in android_sizes.items():
         save_icon(
             os.path.join(ANDROID_RES, folder, "infinitericks.png"),
-            draw_app_icon(sz),
+            launcher.resize((sz, sz), Image.LANCZOS),
         )
 
     print(f"Generated icons in {ICON_DIR} and {ANDROID_RES}")
