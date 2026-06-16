@@ -353,25 +353,43 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
 RESOURCES += \
     src/qt/bitcoin.qrc
 
-FORMS += \
-    src/qt/forms/coincontroldialog.ui \
-    src/qt/forms/sendcoinsdialog.ui \
-    src/qt/forms/addressbookpage.ui \
-    src/qt/forms/signverifymessagedialog.ui \
-    src/qt/forms/aboutdialog.ui \
-    src/qt/forms/editaddressdialog.ui \
-    src/qt/forms/transactiondescdialog.ui \
-    src/qt/forms/overviewpage.ui \
-    src/qt/forms/sendcoinsentry.ui \
-    src/qt/forms/askpassphrasedialog.ui \
-    src/qt/forms/introdialog.ui \
-    src/qt/forms/rpcconsole.ui \
-    src/qt/forms/optionsdialog.ui
+android {
+    FORMS += \
+        src/qt/android/forms/coincontroldialog.ui \
+        src/qt/android/forms/sendcoinsdialog.ui \
+        src/qt/android/forms/addressbookpage.ui \
+        src/qt/android/forms/signverifymessagedialog.ui \
+        src/qt/android/forms/aboutdialog.ui \
+        src/qt/android/forms/editaddressdialog.ui \
+        src/qt/android/forms/transactiondescdialog.ui \
+        src/qt/android/forms/overviewpage.ui \
+        src/qt/android/forms/sendcoinsentry.ui \
+        src/qt/android/forms/askpassphrasedialog.ui \
+        src/qt/android/forms/introdialog.ui \
+        src/qt/android/forms/rpcconsole.ui \
+        src/qt/android/forms/optionsdialog.ui
+} else {
+    FORMS += \
+        src/qt/forms/coincontroldialog.ui \
+        src/qt/forms/sendcoinsdialog.ui \
+        src/qt/forms/addressbookpage.ui \
+        src/qt/forms/signverifymessagedialog.ui \
+        src/qt/forms/aboutdialog.ui \
+        src/qt/forms/editaddressdialog.ui \
+        src/qt/forms/transactiondescdialog.ui \
+        src/qt/forms/overviewpage.ui \
+        src/qt/forms/sendcoinsentry.ui \
+        src/qt/forms/askpassphrasedialog.ui \
+        src/qt/forms/introdialog.ui \
+        src/qt/forms/rpcconsole.ui \
+        src/qt/forms/optionsdialog.ui
+}
 
 contains(USE_QRCODE, 1) {
 HEADERS += src/qt/qrcodedialog.h
 SOURCES += src/qt/qrcodedialog.cpp
-FORMS += src/qt/forms/qrcodedialog.ui
+android:FORMS += src/qt/android/forms/qrcodedialog.ui
+else:FORMS += src/qt/forms/qrcodedialog.ui
 }
 
 CODECFORTR = UTF-8
@@ -501,7 +519,7 @@ android {
     ANDROID_MIN_SDK_VERSION = 24
     ANDROID_TARGET_SDK_VERSION = 34
     ANDROID_APP_NAME = InfiniteRicks Wallet
-    ANDROID_VERSION_CODE = 209
+    ANDROID_VERSION_CODE = 210
     # Android 15+ may use 16 KB memory pages on arm64 devices.
     QMAKE_LFLAGS += -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
     ANDROID_VERSION_NAME = $$VERSION
@@ -511,6 +529,7 @@ android {
         src/qt/android/build.gradle \
         src/qt/android/gradle.properties \
         src/qt/android/res/values/libs.xml \
+        src/qt/android/forms/*.ui \
         src/qt/android/src/org/infinitericks/qt/InfiniteRicksApplication.java \
         src/qt/android/src/org/infinitericks/qt/InfiniteRicksQtActivity.java
 
