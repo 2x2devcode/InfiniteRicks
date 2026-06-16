@@ -154,6 +154,7 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     connect(androidBottomNav, SIGNAL(sendClicked()), this, SLOT(gotoSendCoinsPage()));
     connect(androidBottomNav, SIGNAL(receiveClicked()), this, SLOT(gotoReceiveCoinsPage()));
     connect(androidBottomNav, SIGNAL(historyClicked()), this, SLOT(gotoHistoryPage()));
+    connect(androidBottomNav, SIGNAL(settingsClicked()), this, SLOT(optionsClicked()));
 
     connect(overviewPage, SIGNAL(quickSendClicked()), this, SLOT(gotoSendCoinsPage()));
     connect(overviewPage, SIGNAL(quickReceiveClicked()), this, SLOT(gotoReceiveCoinsPage()));
