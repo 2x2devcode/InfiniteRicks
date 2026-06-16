@@ -8,7 +8,9 @@
 #include "transactiontablemodel.h"
 #include "addressbookpage.h"
 #include "sendcoinsdialog.h"
+#if !defined(Q_OS_ANDROID)
 #include "signverifymessagedialog.h"
+#endif
 #include "optionsdialog.h"
 #include "clientmodel.h"
 #include "walletmodel.h"
@@ -72,10 +74,13 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     changePassphraseAction(0),
     unlockWalletAction(0),
     lockWalletAction(0),
+    signMessageAction(0),
+    verifyMessageAction(0),
     aboutQtAction(0),
     trayIcon(0),
     notificator(0),
     rpcConsole(0),
+    signVerifyMessageDialog(0),
     androidBottomNav(0),
     nWeight(0)
 {
@@ -123,7 +128,9 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
 
     sendCoinsPage = new SendCoinsDialog(this);
 
+#if !defined(Q_OS_ANDROID)
     signVerifyMessageDialog = new SignVerifyMessageDialog(this);
+#endif
 
     WatermarkWidget *contentArea = new WatermarkWidget(this);
     centralWidget = contentArea->stackedWidget();
@@ -226,10 +233,12 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     rpcConsole = new RPCConsole(this);
     connect(openRPCConsoleAction, SIGNAL(triggered()), rpcConsole, SLOT(show()));
 
+#if !defined(Q_OS_ANDROID)
     // Clicking on "Verify Message" in the address book sends you to the verify message tab
     connect(addressBookPage, SIGNAL(verifyMessage(QString)), this, SLOT(gotoVerifyMessageTab(QString)));
     // Clicking on "Sign Message" in the receive coins page sends you to the sign message tab
     connect(receiveCoinsPage, SIGNAL(signMessage(QString)), this, SLOT(gotoSignMessageTab(QString)));
+#endif
 
     GUIUtil::fixWidgetFonts(this);
     gotoOverviewPage();
@@ -293,9 +302,11 @@ void BitcoinGUI::createActions()
     quitAction->setToolTip(tr("Quit application"));
     quitAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_Q));
     quitAction->setMenuRole(QAction::QuitRole);
+#if !defined(Q_OS_ANDROID)
     aboutQtAction = new QAction(QIcon(":/icons/qtlogo"), tr("About &Qt"), this);
     aboutQtAction->setToolTip(tr("Show information about Qt"));
     aboutQtAction->setMenuRole(QAction::AboutQtRole);
+#endif
     optionsAction = new QAction(QIcon(":/icons/options"), tr("&Options..."), this);
     optionsAction->setToolTip(tr("Modify configuration options for InfiniteRicks"));
     optionsAction->setMenuRole(QAction::PreferencesRole);
@@ -311,8 +322,10 @@ void BitcoinGUI::createActions()
     unlockWalletAction->setToolTip(tr("Unlock wallet"));
     lockWalletAction = new QAction(QIcon(":/icons/lock_closed"), tr("&Lock Wallet"), this);
     lockWalletAction->setToolTip(tr("Lock wallet"));
+#if !defined(Q_OS_ANDROID)
     signMessageAction = new QAction(QIcon(":/icons/edit"), tr("Sign &message..."), this);
     verifyMessageAction = new QAction(QIcon(":/icons/transaction_0"), tr("&Verify message..."), this);
+#endif
 
     exportAction = new QAction(QIcon(":/icons/export"), tr("&Export..."), this);
     exportAction->setToolTip(tr("Export the data in the current tab to a file"));
@@ -320,7 +333,9 @@ void BitcoinGUI::createActions()
     openRPCConsoleAction->setToolTip(tr("Open debugging and diagnostic console"));
 
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
+#if !defined(Q_OS_ANDROID)
     connect(aboutQtAction, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
+#endif
     connect(optionsAction, SIGNAL(triggered()), this, SLOT(optionsClicked()));
     connect(toggleHideAction, SIGNAL(triggered()), this, SLOT(toggleHidden()));
     connect(encryptWalletAction, SIGNAL(triggered(bool)), this, SLOT(encryptWallet(bool)));
@@ -328,8 +343,10 @@ void BitcoinGUI::createActions()
     connect(changePassphraseAction, SIGNAL(triggered()), this, SLOT(changePassphrase()));
     connect(unlockWalletAction, SIGNAL(triggered()), this, SLOT(unlockWallet()));
     connect(lockWalletAction, SIGNAL(triggered()), this, SLOT(lockWallet()));
+#if !defined(Q_OS_ANDROID)
     connect(signMessageAction, SIGNAL(triggered()), this, SLOT(gotoSignMessageTab()));
     connect(verifyMessageAction, SIGNAL(triggered()), this, SLOT(gotoVerifyMessageTab()));
+#endif
 }
 
 void BitcoinGUI::createMenuBar()
@@ -346,8 +363,10 @@ void BitcoinGUI::createMenuBar()
     QMenu *file = appMenuBar->addMenu(tr("&File"));
     file->addAction(backupWalletAction);
     file->addAction(exportAction);
+#if !defined(Q_OS_ANDROID)
     file->addAction(signMessageAction);
     file->addAction(verifyMessageAction);
+#endif
     file->addSeparator();
     file->addAction(quitAction);
 
@@ -361,8 +380,10 @@ void BitcoinGUI::createMenuBar()
 
     QMenu *help = appMenuBar->addMenu(tr("&Help"));
     help->addAction(openRPCConsoleAction);
+#if !defined(Q_OS_ANDROID)
     help->addSeparator();
     help->addAction(aboutQtAction);
+#endif
 }
 
 void BitcoinGUI::createToolBars()
@@ -441,7 +462,9 @@ void BitcoinGUI::setWalletModel(WalletModel *walletModel)
         addressBookPage->setModel(walletModel->getAddressTableModel());
         receiveCoinsPage->setModel(walletModel->getAddressTableModel());
         sendCoinsPage->setModel(walletModel);
+#if !defined(Q_OS_ANDROID)
         signVerifyMessageDialog->setModel(walletModel);
+#endif
 
         setEncryptionStatus(walletModel->getEncryptionStatus());
         connect(walletModel, SIGNAL(encryptionStatusChanged(int)), this, SLOT(setEncryptionStatus(int)));
@@ -802,20 +825,28 @@ void BitcoinGUI::gotoSendCoinsPage()
 
 void BitcoinGUI::gotoSignMessageTab(QString addr)
 {
+#if defined(Q_OS_ANDROID)
+    Q_UNUSED(addr);
+#else
     // call show() in showTab_SM()
     signVerifyMessageDialog->showTab_SM(true);
 
     if(!addr.isEmpty())
         signVerifyMessageDialog->setAddress_SM(addr);
+#endif
 }
 
 void BitcoinGUI::gotoVerifyMessageTab(QString addr)
 {
+#if defined(Q_OS_ANDROID)
+    Q_UNUSED(addr);
+#else
     // call show() in showTab_VM()
     signVerifyMessageDialog->showTab_VM(true);
 
     if(!addr.isEmpty())
         signVerifyMessageDialog->setAddress_VM(addr);
+#endif
 }
 
 void BitcoinGUI::dragEnterEvent(QDragEnterEvent *event)

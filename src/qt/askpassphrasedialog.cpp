@@ -7,6 +7,17 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QKeyEvent>
+#include <QWidget>
+
+namespace {
+void hideIfExists(QWidget *parent, const char *objectName)
+{
+    if (!parent)
+        return;
+    if (QWidget *widget = parent->findChild<QWidget *>(objectName))
+        widget->hide();
+}
+}
 
 extern bool fWalletUnlockStakingOnly;
 
@@ -32,7 +43,7 @@ AskPassphraseDialog::AskPassphraseDialog(Mode mode, QWidget *parent) :
     switch(mode)
     {
         case Encrypt: // Ask passphrase x2
-            ui->passLabel1->hide();
+            hideIfExists(this, "passLabel1");
             ui->passEdit1->hide();
             ui->warningLabel->setText(tr("Enter the new passphrase to the wallet.<br/>Please use a passphrase of <b>ten or more random characters</b>, or <b>eight or more words</b>."));
             setWindowTitle(tr("Encrypt wallet"));
@@ -43,17 +54,17 @@ AskPassphraseDialog::AskPassphraseDialog(Mode mode, QWidget *parent) :
             // fallthru
         case Unlock: // Ask passphrase
             ui->warningLabel->setText(tr("This operation needs your wallet passphrase to unlock the wallet."));
-            ui->passLabel2->hide();
+            hideIfExists(this, "passLabel2");
             ui->passEdit2->hide();
-            ui->passLabel3->hide();
+            hideIfExists(this, "passLabel3");
             ui->passEdit3->hide();
             setWindowTitle(tr("Unlock wallet"));
             break;
         case Decrypt:   // Ask passphrase
             ui->warningLabel->setText(tr("This operation needs your wallet passphrase to decrypt the wallet."));
-            ui->passLabel2->hide();
+            hideIfExists(this, "passLabel2");
             ui->passEdit2->hide();
-            ui->passLabel3->hide();
+            hideIfExists(this, "passLabel3");
             ui->passEdit3->hide();
             setWindowTitle(tr("Decrypt wallet"));
             break;

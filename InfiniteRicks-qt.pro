@@ -179,7 +179,6 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/coincontroltreewidget.h \
     src/qt/sendcoinsdialog.h \
     src/qt/addressbookpage.h \
-    src/qt/signverifymessagedialog.h \
     src/qt/aboutdialog.h \
     src/qt/editaddressdialog.h \
     src/qt/bitcoinaddressvalidator.h \
@@ -275,7 +274,6 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/coincontroldialog.cpp \
     src/qt/coincontroltreewidget.cpp \
     src/qt/addressbookpage.cpp \
-    src/qt/signverifymessagedialog.cpp \
     src/qt/aboutdialog.cpp \
     src/qt/editaddressdialog.cpp \
     src/qt/bitcoinaddressvalidator.cpp \
@@ -358,7 +356,6 @@ android {
         src/qt/android/forms/coincontroldialog.ui \
         src/qt/android/forms/sendcoinsdialog.ui \
         src/qt/android/forms/addressbookpage.ui \
-        src/qt/android/forms/signverifymessagedialog.ui \
         src/qt/android/forms/aboutdialog.ui \
         src/qt/android/forms/editaddressdialog.ui \
         src/qt/android/forms/transactiondescdialog.ui \
@@ -383,6 +380,11 @@ android {
         src/qt/forms/introdialog.ui \
         src/qt/forms/rpcconsole.ui \
         src/qt/forms/optionsdialog.ui
+}
+
+!android {
+    HEADERS += src/qt/signverifymessagedialog.h
+    SOURCES += src/qt/signverifymessagedialog.cpp
 }
 
 contains(USE_QRCODE, 1) {
