@@ -20,6 +20,7 @@ signals:
     void sendClicked();
     void receiveClicked();
     void historyClicked();
+    void settingsClicked();
 
 private:
     QButtonGroup *buttonGroup;
@@ -27,6 +28,7 @@ private:
     QToolButton *sendButton;
     QToolButton *receiveButton;
     QToolButton *historyButton;
+    QToolButton *settingsButton;
 };
 
 #endif // ANDROIDBOTTOMNAV_H
