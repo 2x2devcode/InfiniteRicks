@@ -256,6 +256,15 @@ run_make() {
     make "${MAKE_EXTRA_ARGS[@]}" AR="$AR" RANLIB="$RANLIB" "$@"
 }
 
+run_qt_release_make() {
+    make_flags
+    if [[ ! -f Makefile.Release ]]; then
+        die "qmake did not generate Makefile.Release (qmake may have failed)"
+    fi
+    # Qt top-level "make release" + -j can exit immediately with no output; build Release directly.
+    make "${MAKE_EXTRA_ARGS[@]}" -f Makefile.Release
+}
+
 verify_toolchain() {
     local label="${1:-build}"
     need_cmd "$CC"
@@ -486,6 +495,12 @@ build_mingw_dependencies() {
 }
 
 build_leveldb() {
+    local skip_if_built="${1:-0}"
+    if [[ "$skip_if_built" -eq 1 && -f "$SRC_DIR/leveldb/libleveldb.a" && -f "$SRC_DIR/leveldb/libmemenv.a" ]]; then
+        log "LevelDB already built, skipping ($SRC_DIR/leveldb/libleveldb.a)"
+        return 0
+    fi
+
     log "Building LevelDB for Windows (${ARCH})"
     verify_toolchain "LevelDB"
 
@@ -700,7 +715,7 @@ build_gui() {
     local gui_obj_dir="build-mingw-${ARCH}"
     local legacy_gui_dir="$REPO_ROOT/build-win-qt-${ARCH}"
 
-    build_leveldb
+    build_leveldb 1
 
     # qmake from a subdir breaks .moc paths and may omit MinGW C++14 byte fixes.
     pushd "$REPO_ROOT" >/dev/null
@@ -709,7 +724,8 @@ build_gui() {
         rm -rf "$legacy_gui_dir"
     fi
     rm -f Makefile Makefile.Debug Makefile.Release .qmake.stash
-    rm -rf "$gui_obj_dir" build release
+    rm -rf "$gui_obj_dir" build
+    mkdir -p build "$gui_obj_dir" release
 
     local host_lrelease_bin
     host_lrelease_bin="$(host_lrelease)"
@@ -721,6 +737,7 @@ build_gui() {
         InfiniteRicks-qt.pro \
         RELEASE=1 \
         USE_UPNP=1 \
+        USE_BUILD_INFO=1 \
         OBJECTS_DIR="$gui_obj_dir" \
         MOC_DIR="$gui_obj_dir" \
         UI_DIR="$gui_obj_dir" \
@@ -743,10 +760,12 @@ build_gui() {
         QMAKE_LRELEASE="$host_lrelease_bin" \
         "QMAKE_CXXFLAGS+=-std=gnu++14 -include $REPO_ROOT/src/qt/mingw-preinclude.h" \
         "QMAKE_CXXFLAGS_RELEASE+=-std=gnu++14" \
-        "QMAKE_CXXFLAGS_DEBUG+=-std=gnu++14"
+        "QMAKE_CXXFLAGS_DEBUG+=-std=gnu++14" \
+        || die "qmake failed for InfiniteRicks-qt.pro"
 
-    log "Compiling GUI (make release) — errors will be saved to $BUILD_LOG"
-    PATH="$mxe_bin:$mxe_qt_bin:$PATH" run_make release
+    log "Compiling GUI (make -f Makefile.Release) — errors will be saved to $BUILD_LOG"
+    PATH="$mxe_bin:$mxe_qt_bin:$PATH" run_qt_release_make \
+        || die "GUI build failed — search the log for 'error:' or 'undefined reference'"
 
     local exe_path=""
     if [[ -f release/InfiniteRicks-qt.exe ]]; then

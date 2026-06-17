@@ -405,9 +405,12 @@ a few dozen lines above in the log. Rebuild with logging enabled:
   less windows-build/build-latest.log
   less windows-build/build-errors-latest.log
 
+compile-windows.sh now runs `make -f Makefile.Release` directly (not `make release`),
+which avoids a silent failure with parallel jobs.
+
 If building by hand after qmake:
 
-  make release 2>&1 | tee windows-build/manual-make.log
+  make -f Makefile.Release -j$(nproc) 2>&1 | tee windows-build/manual-make.log
 
 LevelDB fails immediately after "Building LevelDB for Windows"
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
