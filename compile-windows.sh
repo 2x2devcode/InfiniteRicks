@@ -26,7 +26,12 @@ BUILD_CLI=1
 BUILD_GUI=1
 BUILD_DEPS=1
 BUILD_MXE_QT=1
+BUILD_VERBOSE=0
 JOBS="$(nproc 2>/dev/null || echo 2)"
+
+BUILD_LOG=""
+BUILD_LOG_ERRORS=""
+BUILD_LOG_TEE_PID=""
 
 OPENSSL_VERSION="1.1.1w"
 BDB_VERSION="5.3.28.NC"
@@ -51,12 +56,15 @@ Options:
   --arch x86_64    64-bit Windows target (default)
   --arch i686      32-bit Windows target (not supported: code uses __int128)
   --jobs N         Parallel build jobs (default: nproc)
+  --log-file PATH  Write full build log to PATH (default: windows-build/build-*.log)
+  --verbose        Run make with V=1 (show compile commands)
   --help           Show this help
 
 Environment variables:
   MINGW_DEPS_DIR   Dependency prefix (default: ~/.infinite-ricks/mingw-deps)
   MXE_PATH         MXE installation directory (default: $MINGW_DEPS_DIR/mxe)
   MINGW_OUTPUT_DIR Output directory (default: ./windows-build)
+  MINGW_BUILD_LOG  Same as --log-file (overridden by --log-file)
 EOF
 }
 
@@ -77,6 +85,12 @@ parse_args() {
                 shift
                 JOBS="${1:-}"
                 ;;
+            --log-file)
+                shift
+                BUILD_LOG="${1:-}"
+                [[ -n "$BUILD_LOG" ]] || die "--log-file requires a path"
+                ;;
+            --verbose) BUILD_VERBOSE=1 ;;
             --help|-h)
                 usage
                 exit 0
@@ -184,6 +198,63 @@ prepare_dirs() {
     chmod +x "$SRC_DIR/leveldb/build_detect_platform" 2>/dev/null || true
 }
 
+default_build_log_path() {
+    printf '%s/build-%s.log' "$OUTPUT_DIR" "$(date +%Y%m%d-%H%M%S)"
+}
+
+setup_build_logging() {
+    BUILD_LOG="${BUILD_LOG:-${MINGW_BUILD_LOG:-$(default_build_log_path)}}"
+    BUILD_LOG_ERRORS="${BUILD_LOG%.log}-errors.log"
+    mkdir -p "$(dirname "$BUILD_LOG")"
+    : > "$BUILD_LOG"
+    : > "$BUILD_LOG_ERRORS"
+
+    # Mirror stdout/stderr to the log file for the whole script run.
+    exec > >(tee -a "$BUILD_LOG") 2>&1
+    BUILD_LOG_TEE_PID=$!
+
+    ln -sf "$(basename "$BUILD_LOG")" "$(dirname "$BUILD_LOG")/build-latest.log"
+    ln -sf "$(basename "$BUILD_LOG_ERRORS")" "$(dirname "$BUILD_LOG")/build-errors-latest.log"
+
+    log "Build log: $BUILD_LOG"
+    log "Error summary (on failure): $BUILD_LOG_ERRORS"
+}
+
+extract_build_errors() {
+    [[ -f "$BUILD_LOG" ]] || return 0
+    grep -E -i \
+        '(^|\s)(error:|fatal error:|undefined reference|collect2: error|ld: error|ninja: build stopped|make(\[[0-9]+\])?: \*\*\*|FAILED:|CMake Error)' \
+        "$BUILD_LOG" | tail -n 80 > "$BUILD_LOG_ERRORS" 2>/dev/null || true
+}
+
+on_build_exit() {
+    local ec=$?
+    if [[ $ec -ne 0 && -n "$BUILD_LOG" ]]; then
+        extract_build_errors
+        printf '\n' >&2
+        printf 'ERROR: Windows build failed (exit %s)\n' "$ec" >&2
+        printf '  Full log     : %s\n' "$BUILD_LOG" >&2
+        if [[ -s "$BUILD_LOG_ERRORS" ]]; then
+            printf '  Error summary: %s\n' "$BUILD_LOG_ERRORS" >&2
+            printf '\n--- last build errors ---\n' >&2
+            tail -n 30 "$BUILD_LOG_ERRORS" >&2
+            printf '--- end ---\n' >&2
+        else
+            printf '  Tip: open the full log and search for "error:" near the end.\n' >&2
+        fi
+    fi
+}
+
+make_flags() {
+    MAKE_EXTRA_ARGS=(-j"$JOBS")
+    [[ "$BUILD_VERBOSE" -eq 1 ]] && MAKE_EXTRA_ARGS+=(V=1)
+}
+
+run_make() {
+    make_flags
+    make "${MAKE_EXTRA_ARGS[@]}" "$@"
+}
+
 download_file() {
     local url="$1"
     local output="$2"
@@ -218,7 +289,7 @@ build_openssl() {
         --cross-compile-prefix="${OPENSSL_CROSS_PREFIX}" \
         --prefix="$DEPS_DIR" \
         no-shared no-tests
-    make -j"$JOBS" CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
+    run_make CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
     make install_sw CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
     popd >/dev/null
 }
@@ -300,7 +371,7 @@ build_berkeley_db() {
     patch_berkeley_db_after_configure "$src_dir/build_unix"
     # Do not pass CFLAGS/CXXFLAGS to make: that replaces the generated flags
     # and drops -I../src (dbinc/win_db.h) from CPPFLAGS.
-    make -j"$JOBS" CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
+    run_make CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
     make install CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
     popd >/dev/null
 }
@@ -365,7 +436,7 @@ build_zlib() {
         AR="$AR" \
         RANLIB="$RANLIB" \
         ./configure --prefix="$DEPS_DIR" --static
-    make -j"$JOBS" libz.a
+    run_make libz.a
     make install
     popd >/dev/null
 }
@@ -407,7 +478,7 @@ build_leveldb() {
     pushd "$SRC_DIR/leveldb" >/dev/null
     make clean >/dev/null 2>&1 || true
     CC="$CC" CXX="$CXX" TARGET_OS=OS_WINDOWS_CROSSCOMPILE \
-        make -j"$JOBS" libleveldb.a libmemenv.a
+        run_make libleveldb.a libmemenv.a
     "$RANLIB" libleveldb.a
     "$RANLIB" libmemenv.a
     popd >/dev/null
@@ -429,8 +500,7 @@ build_cli() {
     build_leveldb
     pushd "$SRC_DIR" >/dev/null
     make -f makefile.linux-mingw clean >/dev/null 2>&1 || true
-    make -f makefile.linux-mingw \
-        -j"$JOBS" \
+    run_make -f makefile.linux-mingw \
         DEPSDIR="$DEPS_DIR" \
         TARGET_PLATFORM="$ARCH" \
         USE_UPNP=1
@@ -535,10 +605,10 @@ EOF
       log "Building MXE host glib (one-time step before Qt)..."
       rm -rf "tmp-glib-x86_64-pc-linux-gnu"
       export PKG_CONFIG_PATH="$(host_pkg_config_path):${PKG_CONFIG_PATH:-}"
-      make glib -j"$JOBS" MXE_TARGETS=x86_64-pc-linux-gnu || \
+      run_make glib MXE_TARGETS=x86_64-pc-linux-gnu || \
           die "MXE host glib failed. Install libpcre2-dev and ensure github.com is reachable."
   fi
-  make qtbase -j"$JOBS" MXE_TARGETS="${MXE_TARGET}"
+  run_make qtbase MXE_TARGETS="${MXE_TARGET}"
   popd >/dev/null
 
   [[ -x "$qmake_bin" ]] || die "MXE qmake not found after build: $qmake_bin"
@@ -643,7 +713,8 @@ build_gui() {
         "QMAKE_CXXFLAGS_RELEASE+=-std=gnu++14" \
         "QMAKE_CXXFLAGS_DEBUG+=-std=gnu++14"
 
-    env PATH="$mxe_bin:$mxe_qt_bin:$PATH" make -j"$JOBS"
+    log "Compiling GUI (make release) — errors will be saved to $BUILD_LOG"
+    PATH="$mxe_bin:$mxe_qt_bin:$PATH" run_make release
 
     local exe_path=""
     if [[ -f release/InfiniteRicks-qt.exe ]]; then
@@ -674,6 +745,7 @@ print_summary() {
     printf '  Architecture : %s\n' "$ARCH"
     printf '  Dependencies : %s\n' "$DEPS_DIR"
     printf '  Output dir   : %s\n' "$OUTPUT_DIR"
+    [[ -n "$BUILD_LOG" ]] && printf '  Build log    : %s\n' "$BUILD_LOG"
     [[ -f "$OUTPUT_DIR/InfiniteRicksd.exe" ]] && printf '  CLI          : %s\n' "$OUTPUT_DIR/InfiniteRicksd.exe"
     [[ -f "$OUTPUT_DIR/InfiniteRicks-qt.exe" ]] && printf '  GUI          : %s\n' "$OUTPUT_DIR/InfiniteRicks-qt.exe"
 }
@@ -681,8 +753,10 @@ print_summary() {
 main() {
     parse_args "$@"
     resolve_paths
-    install_apt_packages
     prepare_dirs
+    setup_build_logging
+    trap on_build_exit EXIT
+    install_apt_packages
     setup_toolchain
 
     if [[ "$BUILD_GUI" -eq 1 ]]; then

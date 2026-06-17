@@ -22,6 +22,21 @@ This installs missing packages, builds MinGW dependencies, and produces
 to build a single target. 32-bit Windows (i686) is not supported because
 the codebase uses GCC __int128.
 
+Build logs (for diagnosing errors such as "make: *** [Makefile:45: release] Error 2"):
+
+  ./compile-windows.sh 2>&1 | tee windows-build/manual.log   # optional extra copy
+  ./compile-windows.sh --log-file windows-build/my-build.log   # explicit log path
+  ./compile-windows.sh --verbose                             # show compile commands (make V=1)
+
+By default the script writes:
+
+  windows-build/build-YYYYMMDD-HHMMSS.log   # full output
+  windows-build/build-latest.log            # symlink to the latest full log
+  windows-build/build-errors-latest.log     # last errors extracted on failure
+
+After a failed GUI build, open build-errors-latest.log or search the full log
+for "error:" and "undefined reference".
+
 
 Overview
 --------
@@ -379,6 +394,20 @@ build-win-qt-x86_64/ directory:
 Never run make from inside build-win-qt-x86_64/. The compile command must show
 -std=gnu++14 and -include .../mingw-preinclude.h; if not, delete Makefile* and
 re-run ./compile-windows.sh.
+
+"make: *** [Makefile:45: release] Error 2"
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This means the Qt/qmake release build failed; the real compiler error is usually
+a few dozen lines above in the log. Rebuild with logging enabled:
+
+  ./compile-windows.sh --gui-only --verbose
+  less windows-build/build-latest.log
+  less windows-build/build-errors-latest.log
+
+If building by hand after qmake:
+
+  make release 2>&1 | tee windows-build/manual-make.log
 
 
 8. Quick reference
