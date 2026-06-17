@@ -441,6 +441,24 @@ Usually obj/build.h could not be created because src/obj/ did not exist
   git pull
   ./compile-windows.sh --verbose
 
+Updating the build branch (divergent branches)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If `git pull` reports "divergent branches" on a build server, align with GitHub
+(discard local commits; keep only uncommitted build artifacts outside git):
+
+  git fetch origin
+  git checkout cursor/windows-build-log-ab47
+  git reset --hard origin/cursor/windows-build-log-ab47
+
+Then rebuild:
+
+  ./compile-windows.sh --verbose
+
+To keep local commits and merge remote changes instead:
+
+  git pull origin cursor/windows-build-log-ab47 --no-rebase
+
 
 8. Quick reference
 ------------------
