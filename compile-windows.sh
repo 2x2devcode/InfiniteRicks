@@ -720,31 +720,61 @@ list_missing_qt_resources() {
     done < <(qrc_resource_paths)
 }
 
+ensure_qt_translations() {
+    local lrelease_bin qm_file ts_file base compiled=0
+    lrelease_bin="$(host_lrelease)"
+    mkdir -p "$REPO_ROOT/src/qt/locale"
+
+    while IFS= read -r qm_file; do
+        [[ -f "$qm_file" ]] && continue
+        [[ "$qm_file" == */locale/*.qm ]] || continue
+        base="$(basename "$qm_file" .qm)"
+        ts_file="$REPO_ROOT/src/qt/locale/${base}.ts"
+        [[ -f "$ts_file" ]] || die "Missing translation source: $ts_file (needed for $(basename "$qm_file"))"
+        log "Compiling translation: ${base}.ts -> ${base}.qm"
+        "$lrelease_bin" "$ts_file" -qm "$qm_file" || die "lrelease failed for $ts_file"
+        compiled=1
+    done < <(qrc_resource_paths)
+
+    [[ "$compiled" -eq 1 ]] && log "Qt translations compiled with $lrelease_bin"
+}
+
+ensure_qt_icons() {
+    local missing=() generator path
+    while IFS= read -r path; do
+        [[ "$path" == */res/icons/* ]] || continue
+        [[ -f "$path" ]] || missing+=("$path")
+    done < <(qrc_resource_paths)
+    ((${#missing[@]} == 0)) && return 0
+
+    log "Missing ${#missing[@]} Qt icon file(s) under src/qt/res/icons"
+    printf '  %s\n' "${missing[@]:0:8}"
+    ((${#missing[@]} > 8)) && printf '  ... and %s more\n' "$((${#missing[@]} - 8))"
+
+    generator="$REPO_ROOT/share/qt/generate_modern_icons.py"
+    [[ -f "$generator" ]] || die "Missing icon generator: $generator"
+    log "Regenerating Qt/Android icons with $generator"
+    need_cmd python3
+    if ! python3 -c 'import PIL' 2>/dev/null; then
+        log "Installing python3-pil for icon generation"
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pil
+    fi
+    python3 "$generator" || die "Icon generation failed ($generator)"
+}
+
 ensure_qt_resources() {
-    local missing generator path
+    local path
+    ensure_qt_translations
+    ensure_qt_icons
+
     mapfile -t missing < <(list_missing_qt_resources)
     ((${#missing[@]} == 0)) && return 0
 
-    log "Missing ${#missing[@]} Qt resource file(s) referenced by src/qt/bitcoin.qrc"
+    log "Still missing ${#missing[@]} Qt resource file(s) referenced by src/qt/bitcoin.qrc"
     printf '  %s\n' "${missing[@]:0:12}"
     ((${#missing[@]} > 12)) && printf '  ... and %s more\n' "$((${#missing[@]} - 12))"
-
-    generator="$REPO_ROOT/share/qt/generate_modern_icons.py"
-    if [[ -f "$generator" ]]; then
-        log "Regenerating Qt/Android icons with $generator"
-        need_cmd python3
-        if ! python3 -c 'import PIL' 2>/dev/null; then
-            log "Installing python3-pil for icon generation"
-            sudo apt-get update
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pil
-        fi
-        python3 "$generator" || die "Icon generation failed ($generator)"
-    fi
-
-    while IFS= read -r path; do
-        [[ -f "$path" ]] || die "Still missing Qt resource: $path — run 'git pull' or restore files under src/qt/res/"
-    done < <(list_missing_qt_resources)
-    log "Qt resource files are present"
+    die "Restore missing files under src/qt/ or update the repository (git pull)"
 }
 
 build_gui() {
