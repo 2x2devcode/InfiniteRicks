@@ -223,8 +223,8 @@ setup_build_logging() {
 extract_build_errors() {
     [[ -f "$BUILD_LOG" ]] || return 0
     grep -E -i \
-        '(^|\s)(error:|fatal error:|undefined reference|collect2: error|ld: error|ninja: build stopped|make(\[[0-9]+\])?: \*\*\*|FAILED:|CMake Error)' \
-        "$BUILD_LOG" | tail -n 80 > "$BUILD_LOG_ERRORS" 2>/dev/null || true
+        '(^|\s)(error:|fatal error:|undefined reference|collect2: error|ld: error|ninja: build stopped|make(\[[0-9]+\])?: \*\*\*|FAILED:|CMake Error|Error [0-9]+|No such file or directory|cannot find|Unknown platform|build_detect_platform|compiler not found|not found:)' \
+        "$BUILD_LOG" | tail -n 100 > "$BUILD_LOG_ERRORS" 2>/dev/null || true
 }
 
 on_build_exit() {
@@ -240,7 +240,8 @@ on_build_exit() {
             tail -n 30 "$BUILD_LOG_ERRORS" >&2
             printf '--- end ---\n' >&2
         else
-            printf '  Tip: open the full log and search for "error:" near the end.\n' >&2
+            printf '  Tip: last lines of the full log:\n' >&2
+            tail -n 40 "$BUILD_LOG" >&2
         fi
     fi
 }
@@ -252,7 +253,18 @@ make_flags() {
 
 run_make() {
     make_flags
-    make "${MAKE_EXTRA_ARGS[@]}" "$@"
+    make "${MAKE_EXTRA_ARGS[@]}" AR="$AR" RANLIB="$RANLIB" "$@"
+}
+
+verify_toolchain() {
+    local label="${1:-build}"
+    need_cmd "$CC"
+    need_cmd "$CXX"
+    need_cmd "$AR"
+    need_cmd "$RANLIB"
+    log "Toolchain ($label): CC=$CC"
+    log "Toolchain ($label): CXX=$CXX"
+    log "Toolchain ($label): AR=$AR"
 }
 
 download_file() {
@@ -475,13 +487,27 @@ build_mingw_dependencies() {
 
 build_leveldb() {
     log "Building LevelDB for Windows (${ARCH})"
+    verify_toolchain "LevelDB"
+
     pushd "$SRC_DIR/leveldb" >/dev/null
-    make clean >/dev/null 2>&1 || true
-    CC="$CC" CXX="$CXX" TARGET_OS=OS_WINDOWS_CROSSCOMPILE \
-        run_make libleveldb.a libmemenv.a
+    chmod +x ./build_detect_platform
+
+    export TARGET_OS=OS_WINDOWS_CROSSCOMPILE
+    rm -f build_config.mk libleveldb.a libmemenv.a
+
+    log "Generating LevelDB build_config.mk (TARGET_OS=$TARGET_OS)"
+    CC="$CC" CXX="$CXX" TARGET_OS="$TARGET_OS" ./build_detect_platform build_config.mk ./ \
+        || die "LevelDB build_detect_platform failed"
+
+    run_make clean || true
+    CC="$CC" CXX="$CXX" TARGET_OS="$TARGET_OS" \
+        run_make libleveldb.a libmemenv.a \
+        || die "LevelDB make failed (see lines above in the build log)"
+
     "$RANLIB" libleveldb.a
     "$RANLIB" libmemenv.a
     popd >/dev/null
+    log "LevelDB built: $SRC_DIR/leveldb/libleveldb.a"
 }
 
 copy_cli_runtime_dlls() {
@@ -497,10 +523,12 @@ copy_cli_runtime_dlls() {
 
 build_cli() {
     log "Building InfiniteRicksd.exe"
+    verify_toolchain "CLI"
     build_leveldb
     pushd "$SRC_DIR" >/dev/null
     make -f makefile.linux-mingw clean >/dev/null 2>&1 || true
     run_make -f makefile.linux-mingw \
+        CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" \
         DEPSDIR="$DEPS_DIR" \
         TARGET_PLATFORM="$ARCH" \
         USE_UPNP=1
@@ -763,6 +791,7 @@ main() {
         ensure_mxe
         setup_mxe_toolchain_env
         use_mxe_compiler_for_deps
+        verify_mxe_toolchain
         log "GUI build uses MXE toolchain; dependencies in $DEPS_DIR"
     fi
 

@@ -409,6 +409,25 @@ If building by hand after qmake:
 
   make release 2>&1 | tee windows-build/manual-make.log
 
+LevelDB fails immediately after "Building LevelDB for Windows"
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Usually the MinGW/MXE compiler is missing or not on PATH. The script now prints
+the toolchain paths before building. Check:
+
+  ls -l ~/.infinite-ricks/mingw-deps-x86_64/mxe/usr/bin/x86_64-w64-mingw32.static-g++
+
+For GUI builds, dependencies and LevelDB must use the MXE toolchain (not only
+/usr/bin/x86_64-w64-mingw32-g++). Re-run without --skip-mxe or rebuild MXE:
+
+  ./compile-windows.sh --deps-only
+  ./compile-windows.sh --verbose
+
+CLI-only builds use system mingw-w64:
+
+  sudo apt-get install -y g++-mingw-w64-x86-64
+  ./compile-windows.sh --cli-only
+
 
 8. Quick reference
 ------------------
