@@ -477,6 +477,21 @@ this manually:
   python3 share/qt/generate_modern_icons.py
   ./compile-windows.sh --gui-only --verbose
 
+GUI build fails: missing locale/bitcoin_*.qm files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``.qm`` translation files are not stored in git; they are compiled
+from ``src/qt/locale/bitcoin_*.ts`` at build time with ``lrelease``.
+Recent ``compile-windows.sh`` versions compile them automatically before
+the GUI build. Ensure host tools are installed:
+
+  sudo apt-get install -y qttools5-dev-tools
+  ./compile-windows.sh --gui-only --verbose
+
+To compile translations manually:
+
+  lrelease src/qt/locale/bitcoin_en.ts -qm src/qt/locale/bitcoin_en.qm
+
 To keep local commits and merge remote changes instead:
 
   git pull origin cursor/windows-build-log-ab47 --no-rebase
