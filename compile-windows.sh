@@ -159,6 +159,7 @@ install_apt_packages() {
         python3
         python-is-python3
         python3-mako
+        python3-pil
         bzip2
         patch
         p7zip-full
@@ -223,7 +224,7 @@ setup_build_logging() {
 extract_build_errors() {
     [[ -f "$BUILD_LOG" ]] || return 0
     grep -E -i \
-        '(^|\s)(error:|fatal error:|undefined reference|collect2: error|ld: error|ninja: build stopped|make(\[[0-9]+\])?: \*\*\*|FAILED:|CMake Error|Error [0-9]+|No such file or directory|cannot find|cannot create|Unknown platform|build_detect_platform|compiler not found|not found:|Directory nonexistent)' \
+        '(^|\s)(error:|fatal error:|undefined reference|collect2: error|ld: error|ninja: build stopped|make(\[[0-9]+\])?: \*\*\*|No rule to make target|FAILED:|CMake Error|Error [0-9]+|No such file or directory|cannot find|cannot create|Unknown platform|build_detect_platform|compiler not found|not found:|Directory nonexistent)' \
         "$BUILD_LOG" | tail -n 100 > "$BUILD_LOG_ERRORS" 2>/dev/null || true
 }
 
@@ -238,7 +239,7 @@ on_build_exit() {
             printf '  Error summary: %s\n' "$BUILD_LOG_ERRORS" >&2
             printf '\n--- last build errors ---\n' >&2
             tail -n 30 "$BUILD_LOG_ERRORS" >&2
-            printf '--- end ---\n' >&2
+            printf '%s\n' '--- end ---' >&2
         else
             printf '  Tip: last lines of the full log:\n' >&2
             tail -n 40 "$BUILD_LOG" >&2
@@ -703,11 +704,55 @@ host_lrelease() {
     die "Host lrelease not found (install qttools5-dev-tools). MXE does not ship a Linux lrelease binary."
 }
 
+qrc_resource_paths() {
+    local qrc="$REPO_ROOT/src/qt/bitcoin.qrc"
+    [[ -f "$qrc" ]] || die "Missing Qt resource file: $qrc"
+    sed -n 's:.*<file[^>]*>\([^<]*\)</file>.*:\1:p' "$qrc" | while IFS= read -r rel; do
+        [[ -n "$rel" ]] || continue
+        printf '%s\n' "$REPO_ROOT/src/qt/$rel"
+    done
+}
+
+list_missing_qt_resources() {
+    local path
+    while IFS= read -r path; do
+        [[ -f "$path" ]] || printf '%s\n' "$path"
+    done < <(qrc_resource_paths)
+}
+
+ensure_qt_resources() {
+    local missing generator path
+    mapfile -t missing < <(list_missing_qt_resources)
+    ((${#missing[@]} == 0)) && return 0
+
+    log "Missing ${#missing[@]} Qt resource file(s) referenced by src/qt/bitcoin.qrc"
+    printf '  %s\n' "${missing[@]:0:12}"
+    ((${#missing[@]} > 12)) && printf '  ... and %s more\n' "$((${#missing[@]} - 12))"
+
+    generator="$REPO_ROOT/share/qt/generate_modern_icons.py"
+    if [[ -f "$generator" ]]; then
+        log "Regenerating Qt/Android icons with $generator"
+        need_cmd python3
+        if ! python3 -c 'import PIL' 2>/dev/null; then
+            log "Installing python3-pil for icon generation"
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pil
+        fi
+        python3 "$generator" || die "Icon generation failed ($generator)"
+    fi
+
+    while IFS= read -r path; do
+        [[ -f "$path" ]] || die "Still missing Qt resource: $path — run 'git pull' or restore files under src/qt/res/"
+    done < <(list_missing_qt_resources)
+    log "Qt resource files are present"
+}
+
 build_gui() {
     log "Building InfiniteRicks-qt.exe"
     ensure_mxe
     verify_mxe_toolchain
     setup_mxe_toolchain_env
+    ensure_qt_resources
 
     local qmake_bin="$MXE_DIR/usr/bin/${MXE_TARGET}-qmake-qt5"
     local mxe_bin="$MXE_DIR/usr/bin"
