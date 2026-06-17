@@ -455,6 +455,28 @@ Then rebuild:
 
   ./compile-windows.sh --verbose
 
+GUI build fails: No rule to make target 'src/qt/res/icons/receive.png'
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Qt wallet embeds icons from src/qt/res/icons/ via src/qt/bitcoin.qrc.
+If those PNG files are missing from your checkout (common after a partial
+``git pull`` or an out-of-date branch), ``make`` stops while generating
+``release/qrc_bitcoin.cpp``.
+
+Update the repository and align with the Windows build branch:
+
+  git fetch origin
+  git checkout cursor/windows-build-log-ab47
+  git reset --hard origin/cursor/windows-build-log-ab47
+
+Recent ``compile-windows.sh`` versions also regenerate missing icons
+automatically before the GUI build (requires python3-pil). You can run
+this manually:
+
+  sudo apt-get install -y python3-pil
+  python3 share/qt/generate_modern_icons.py
+  ./compile-windows.sh --gui-only --verbose
+
 To keep local commits and merge remote changes instead:
 
   git pull origin cursor/windows-build-log-ab47 --no-rebase
