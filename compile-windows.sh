@@ -223,7 +223,7 @@ setup_build_logging() {
 extract_build_errors() {
     [[ -f "$BUILD_LOG" ]] || return 0
     grep -E -i \
-        '(^|\s)(error:|fatal error:|undefined reference|collect2: error|ld: error|ninja: build stopped|make(\[[0-9]+\])?: \*\*\*|FAILED:|CMake Error|Error [0-9]+|No such file or directory|cannot find|Unknown platform|build_detect_platform|compiler not found|not found:)' \
+        '(^|\s)(error:|fatal error:|undefined reference|collect2: error|ld: error|ninja: build stopped|make(\[[0-9]+\])?: \*\*\*|FAILED:|CMake Error|Error [0-9]+|No such file or directory|cannot find|cannot create|Unknown platform|build_detect_platform|compiler not found|not found:|Directory nonexistent)' \
         "$BUILD_LOG" | tail -n 100 > "$BUILD_LOG_ERRORS" 2>/dev/null || true
 }
 
@@ -526,12 +526,16 @@ build_cli() {
     verify_toolchain "CLI"
     build_leveldb
     pushd "$SRC_DIR" >/dev/null
-    make -f makefile.linux-mingw clean >/dev/null 2>&1 || true
+    mkdir -p obj obj/zerocoin
+    # Do not run makefile clean here: it wipes LevelDB we just built and removes obj/build.h.
+    log "Compiling InfiniteRicksd.exe (makefile.linux-mingw)"
     run_make -f makefile.linux-mingw \
         CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" \
         DEPSDIR="$DEPS_DIR" \
         TARGET_PLATFORM="$ARCH" \
-        USE_UPNP=1
+        USE_UPNP=1 \
+        || die "InfiniteRicksd.exe build failed (see errors above in the build log)"
+    [[ -f InfiniteRicksd.exe ]] || die "InfiniteRicksd.exe was not produced after make"
     cp InfiniteRicksd.exe "$OUTPUT_DIR/"
     popd >/dev/null
     copy_cli_runtime_dlls

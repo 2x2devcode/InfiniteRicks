@@ -428,6 +428,16 @@ CLI-only builds use system mingw-w64:
   sudo apt-get install -y g++-mingw-w64-x86-64
   ./compile-windows.sh --cli-only
 
+Build stops right after "LevelDB built" with no compiler errors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Usually obj/build.h could not be created because src/obj/ did not exist
+(genbuild.sh failed silently). Fixed in share/genbuild.sh and compile-windows.sh
+(mkdir -p obj before make). Update the repo and rebuild:
+
+  git pull
+  ./compile-windows.sh --verbose
+
 
 8. Quick reference
 ------------------
