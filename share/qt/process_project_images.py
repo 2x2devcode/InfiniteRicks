@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strip metadata from project images and build white toolbar icon variants."""
+"""Strip metadata from project images, Android launcher icons, and white toolbar variants."""
 
 import os
 import sys
@@ -98,6 +98,35 @@ def save_white_copy(src_path, dst_path):
     white.save(dst_path, optimize=True, pnginfo=PngImagePlugin.PngInfo())
 
 
+ANDROID_LAUNCHER_SIZES = {
+    "drawable-ldpi": 36,
+    "drawable-mdpi": 48,
+    "drawable-hdpi": 72,
+    "drawable-xhdpi": 96,
+    "drawable-xxhdpi": 144,
+    "drawable-xxxhdpi": 192,
+}
+
+
+def regenerate_android_launcher_icons():
+    splash = os.path.join(REPO, "src", "qt", "res", "images", "splash.png")
+    android_res = os.path.join(REPO, "src", "qt", "android", "res")
+    if not os.path.isfile(splash) or not os.path.isdir(android_res):
+        return 0
+
+    launcher = clean_image(Image.open(splash))
+    updated = 0
+    for folder, size in ANDROID_LAUNCHER_SIZES.items():
+        out_dir = os.path.join(android_res, folder)
+        if not os.path.isdir(out_dir):
+            continue
+        out_path = os.path.join(out_dir, "infinitericks.png")
+        icon = launcher.resize((size, size), Image.LANCZOS)
+        icon.save(out_path, optimize=True, pnginfo=PngImagePlugin.PngInfo())
+        updated += 1
+    return updated
+
+
 def main():
     os.chdir(REPO)
 
@@ -114,6 +143,10 @@ def main():
     save_white_copy(history_path, history_path)
     print(f"Created white icon: {address_dst}")
     print(f"Updated white icon: {history_path}")
+
+    android_icons = regenerate_android_launcher_icons()
+    if android_icons:
+        print(f"Updated {android_icons} Android launcher icon(s)")
 
     processed = 0
     for path in sorted(iter_images(REPO)):
