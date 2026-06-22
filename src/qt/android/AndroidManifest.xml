@@ -1,0 +1,46 @@
+<?xml version='1.0' encoding='utf-8'?>
+<manifest package="org.infinitericks.qt"
+          xmlns:android="http://schemas.android.com/apk/res/android"
+          android:versionName="2.0.0"
+          android:versionCode="211"
+          android:installLocation="auto">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+
+    <supports-screens android:largeScreens="true"
+                      android:normalScreens="true"
+                      android:anyDensity="true"
+                      android:smallScreens="true"/>
+
+    <application android:hardwareAccelerated="true"
+                 android:name="org.infinitericks.qt.InfiniteRicksApplication"
+                 android:label="InfiniteRicks Wallet"
+                 android:allowBackup="false"
+                 android:allowNativeHeapPointerTagging="false"
+                 android:extractNativeLibs="true">
+        <activity android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"
+                  android:name="org.infinitericks.qt.InfiniteRicksQtActivity"
+                  android:label="InfiniteRicks Wallet"
+                  android:icon="@drawable/infinitericks"
+                  android:screenOrientation="portrait"
+                  android:launchMode="singleTop"
+                  android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+
+            <meta-data android:name="android.app.lib_name" android:value="InfiniteRicks-qt"/>
+            <meta-data android:name="android.app.repository" android:value="default"/>
+            <meta-data android:name="android.app.bundle_local_qt_libs" android:value="1"/>
+            <meta-data android:name="android.app.use_local_qt_libs" android:value="1"/>
+            <meta-data android:name="android.app.background_running" android:value="false"/>
+            <meta-data android:name="android.app.auto_screen_scale_factor" android:value="false"/>
+            <meta-data android:name="android.app.extract_android_style" android:value="none"/>
+            <meta-data android:name="android.app.load_local_libs_resource_id" android:resource="@array/load_local_libs"/>
+        </activity>
+    </application>
+</manifest>
