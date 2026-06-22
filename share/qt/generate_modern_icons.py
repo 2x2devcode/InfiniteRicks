@@ -3,6 +3,7 @@
 
 import math
 import os
+import sys
 from PIL import Image, ImageDraw, PngImagePlugin
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -311,7 +312,6 @@ def main():
     ui_icons = {
         "send.png": draw_send,
         "receive.png": draw_receive,
-        "history.png": draw_history,
         "overview.png": draw_overview,
         "configure.png": draw_options,
         "debugwindow.png": draw_debug,
@@ -391,6 +391,14 @@ def main():
         )
 
     print(f"Generated icons in {ICON_DIR} and {ANDROID_RES}")
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+    from process_project_images import install_custom_toolbar_icons
+
+    for path in install_custom_toolbar_icons():
+        print(f"Installed custom icon: {path}")
 
 
 if __name__ == "__main__":
