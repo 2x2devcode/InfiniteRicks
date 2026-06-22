@@ -127,22 +127,36 @@ def regenerate_android_launcher_icons():
     return updated
 
 
+def install_custom_toolbar_icons():
+    """Install user-provided toolbar icons when source masters exist."""
+    custom_dir = os.path.join(REPO, "share", "qt", "img", "custom")
+    icon_dir = os.path.join(REPO, "src", "qt", "res", "icons")
+    installed = []
+
+    for name in ("history.png", "address-book1.png"):
+        src = os.path.join(custom_dir, name)
+        dst = os.path.join(icon_dir, name)
+        if not os.path.isfile(src):
+            continue
+        img = Image.open(src).convert("RGBA")
+        w, h = img.size
+        side = min(w, h)
+        left = (w - side) // 2
+        top = (h - side) // 2
+        img = img.crop((left, top, left + side, top + side))
+        img = img.resize((48, 48), Image.LANCZOS)
+        img.save(dst, optimize=True, pnginfo=PngImagePlugin.PngInfo())
+        installed.append(dst)
+
+    return installed
+
+
 def main():
     os.chdir(REPO)
 
-    icon_dir = os.path.join(REPO, "src", "qt", "res", "icons")
-    address_src = os.path.join(icon_dir, "address-book.png")
-    address_dst = os.path.join(icon_dir, "address-book1.png")
-    history_path = os.path.join(icon_dir, "history.png")
-
-    if not os.path.isfile(address_src):
-        print(f"Missing source icon: {address_src}", file=sys.stderr)
-        return 1
-
-    save_white_copy(address_src, address_dst)
-    save_white_copy(history_path, history_path)
-    print(f"Created white icon: {address_dst}")
-    print(f"Updated white icon: {history_path}")
+    installed = install_custom_toolbar_icons()
+    for path in installed:
+        print(f"Installed custom icon: {path}")
 
     android_icons = regenerate_android_launcher_icons()
     if android_icons:
