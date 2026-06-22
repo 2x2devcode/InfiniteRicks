@@ -2,6 +2,7 @@
     <qresource prefix="/icons">
         <file alias="bitcoin">res/icons/infinitericks-80.png</file>
         <file alias="address-book">res/icons/address-book.png</file>
+        <file alias="address-book1">res/icons/address-book1.png</file>
         <file alias="quit">res/icons/quit.png</file>
         <file alias="send">res/icons/send.png</file>
         <file alias="toolbar">res/icons/infinitericks-16.png</file>
