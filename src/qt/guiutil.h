@@ -61,6 +61,14 @@ namespace GUIUtil
                                    const QString &dir=QString(), const QString &filter=QString(),
                                    QString *selectedSuffixOut=0);
 
+    QString getExistingDirectory(QWidget *parent, const QString &caption, const QString &dir);
+    QString getDefaultDataDir();
+    QString expandDataDirPath(const QString &path);
+    QString formatBytes(qint64 bytes);
+
+    /** True when the user must pick a data directory before startup continues. */
+    bool needChooseDataDirectory();
+
     /** Get connection type to call object slot in GUI thread with invokeMethod. The call will be blocking.
 
        @returns If called from the GUI thread, return a Qt::DirectConnection.
