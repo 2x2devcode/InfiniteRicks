@@ -27,7 +27,6 @@ using namespace std;
 using namespace boost;
 
 CWallet* pwalletMain;
-CClientUIInterface uiInterface;
 bool fConfChange;
 bool fEnforceCanonical;
 unsigned int nNodeLifespan;
@@ -149,9 +148,10 @@ bool AppInit(int argc, char* argv[])
             std::string strUsage = _("InfiniteRicks version") + " " + FormatFullVersion() + "\n\n" +
                 _("Usage:") + "\n" +
                   "  InfiniteRicksd [options]                     " + "\n" +
-                  "  InfiniteRicksd [options] <command> [params]  " + _("Send command to -server or InfiniteRicksd") + "\n" +
-                  "  InfiniteRicksd [options] help                " + _("List commands") + "\n" +
-                  "  InfiniteRicksd [options] help <command>      " + _("Get help for a command") + "\n";
+                  "  InfiniteRicks-cli [options] <command> [params]  " + _("Send command to -server or InfiniteRicksd") + "\n" +
+                  "  InfiniteRicksd [options] <command> [params]  " + _("(deprecated) same as InfiniteRicks-cli") + "\n" +
+                  "  InfiniteRicks-cli [options] help                " + _("List commands") + "\n" +
+                  "  InfiniteRicks-cli [options] help <command>      " + _("Get help for a command") + "\n";
 
             strUsage += "\n" + HelpMessage();
 
