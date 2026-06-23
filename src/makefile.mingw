@@ -64,6 +64,7 @@ OBJS= \
     obj/net.o \
     obj/protocol.o \
     obj/bitcoinrpc.o \
+    obj/rpcclient.o \
     obj/rpcdump.o \
     obj/rpcnet.o \
     obj/rpcmining.o \
@@ -92,7 +93,42 @@ OBJS= \
     obj/zerocoin/SpendMetaData.o \
     obj/zerocoin/ZeroTest.o
 
-all: InfiniteRicksd.exe
+all: InfiniteRicksd.exe InfiniteRicks-cli.exe InfiniteRicks-tx.exe
+
+TOOL_LIBS= \
+ -l boost_system-mgw44-mt-1_53 \
+ -l boost_filesystem-mgw44-mt-1_53 \
+ -l boost_program_options-mgw44-mt-1_53 \
+ -l boost_thread-mgw44-mt-1_53 \
+ -l boost_chrono-mgw44-mt-1_53 \
+ -l ssl \
+ -l crypto \
+ -l kernel32 -l user32 -l gdi32 -l winspool -l shell32 -l ole32 -l oleaut32 -l uuid -l rpcrt4 -l advapi32 -l ws2_32 -l mswsock -l shlwapi
+
+CLI_OBJS= \
+    obj/infinitericks-cli.o \
+    obj/rpcclient.o \
+    obj/util.o \
+    obj/netbase.o \
+    obj/version.o \
+    obj/sync.o \
+    obj/noui.o
+
+TX_OBJS= \
+    obj/infinitericks-tx.o \
+    obj/txtools.o \
+    obj/script.o \
+    obj/util.o \
+    obj/netbase.o \
+    obj/version.o \
+    obj/sync.o \
+    obj/noui.o \
+    obj/key.o \
+    obj/keystore.o \
+    obj/crypter.o \
+    obj/pbkdf2.o \
+    obj/scrypt.o \
+    obj/scrypt-x86_64.o
 
 LIBS += $(CURDIR)/leveldb/libleveldb.a $(CURDIR)/leveldb/libmemenv.a
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
@@ -117,8 +153,14 @@ obj/scrypt-x86_64.o: scrypt-x86_64.S
 InfiniteRicksd.exe: $(OBJS:obj/%=obj/%)
 	g++ $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 
+InfiniteRicks-cli.exe: $(CLI_OBJS)
+	g++ $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS)
+
+InfiniteRicks-tx.exe: $(TX_OBJS)
+	g++ $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS)
+
 clean:
-	-del /Q InfiniteRicksd
+	-del /Q InfiniteRicksd InfiniteRicks-cli InfiniteRicks-tx
 	-del /Q obj\*
 	-del /Q obj\zerocoin\*
 

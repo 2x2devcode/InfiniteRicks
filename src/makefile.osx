@@ -78,6 +78,7 @@ OBJS= \
     obj/net.o \
     obj/protocol.o \
     obj/bitcoinrpc.o \
+    obj/rpcclient.o \
     obj/rpcdump.o \
     obj/rpcnet.o \
     obj/rpcmining.o \
@@ -118,7 +119,52 @@ else
 endif
 endif
 
-all: InfiniteRicksd
+all: InfiniteRicksd InfiniteRicks-cli InfiniteRicks-tx
+
+ifdef STATIC
+TOOL_LIBS = \
+ $(DEPSDIR)/lib/libboost_system-mt.a \
+ $(DEPSDIR)/lib/libboost_filesystem-mt.a \
+ $(DEPSDIR)/lib/libboost_program_options-mt.a \
+ $(DEPSDIR)/lib/libboost_thread-mt.a \
+ $(DEPSDIR)/lib/libssl.a \
+ $(DEPSDIR)/lib/libcrypto.a \
+ -lz
+else
+TOOL_LIBS = \
+ -lboost_system-mt \
+ -lboost_filesystem-mt \
+ -lboost_program_options-mt \
+ -lboost_thread-mt \
+ -lssl \
+ -lcrypto \
+ -lz
+endif
+
+CLI_OBJS= \
+    obj/infinitericks-cli.o \
+    obj/rpcclient.o \
+    obj/util.o \
+    obj/netbase.o \
+    obj/version.o \
+    obj/sync.o \
+    obj/noui.o
+
+TX_OBJS= \
+    obj/infinitericks-tx.o \
+    obj/txtools.o \
+    obj/script.o \
+    obj/util.o \
+    obj/netbase.o \
+    obj/version.o \
+    obj/sync.o \
+    obj/noui.o \
+    obj/key.o \
+    obj/keystore.o \
+    obj/crypter.o \
+    obj/pbkdf2.o \
+    obj/scrypt.o \
+    obj/scrypt-x86_64.o
 
 LIBS += $(CURDIR)/leveldb/libleveldb.a $(CURDIR)/leveldb/libmemenv.a
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
@@ -159,8 +205,14 @@ obj/scrypt-x86_64.o: scrypt-x86_64.S
 InfiniteRicksd: $(OBJS:obj/%=obj/%)
 	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 
+InfiniteRicks-cli: $(CLI_OBJS)
+	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS)
+
+InfiniteRicks-tx: $(TX_OBJS)
+	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS)
+
 clean:
-	-rm -f InfiniteRicksd
+	-rm -f InfiniteRicksd InfiniteRicks-cli InfiniteRicks-tx
 	-rm -f obj/*.o
 	-rm -f obj/zerocoin/*.o
 	-rm -f obj/*.P

@@ -72,6 +72,7 @@ OBJS= \
     obj/net.o \
     obj/protocol.o \
     obj/bitcoinrpc.o \
+    obj/rpcclient.o \
     obj/rpcdump.o \
     obj/rpcnet.o \
     obj/rpcmining.o \
@@ -100,7 +101,42 @@ OBJS= \
     obj/zerocoin/SpendMetaData.o \
     obj/zerocoin/ZeroTest.o
 
-all: InfiniteRicksd.exe
+all: InfiniteRicksd.exe InfiniteRicks-cli.exe InfiniteRicks-tx.exe
+
+TOOL_LIBS= \
+ -l boost_system-mgw44-mt-1_53 \
+ -l boost_filesystem-mgw44-mt-1_53 \
+ -l boost_program_options-mgw44-mt-1_53 \
+ -l boost_thread-mgw44-mt-1_53 \
+ -l boost_chrono-mgw44-mt-1_53 \
+ -l ssl \
+ -l crypto \
+ -l kernel32 -l user32 -l gdi32 -l winspool -l shell32 -l ole32 -l oleaut32 -l uuid -l rpcrt4 -l advapi32 -l ws2_32 -l mswsock -l shlwapi
+
+CLI_OBJS= \
+    obj/infinitericks-cli.o \
+    obj/rpcclient.o \
+    obj/util.o \
+    obj/netbase.o \
+    obj/version.o \
+    obj/sync.o \
+    obj/noui.o
+
+TX_OBJS= \
+    obj/infinitericks-tx.o \
+    obj/txtools.o \
+    obj/script.o \
+    obj/util.o \
+    obj/netbase.o \
+    obj/version.o \
+    obj/sync.o \
+    obj/noui.o \
+    obj/key.o \
+    obj/keystore.o \
+    obj/crypter.o \
+    obj/pbkdf2.o \
+    obj/scrypt.o \
+    obj/scrypt-x86_64.o
 
 LIBS += $(CURDIR)/leveldb/libleveldb.a $(CURDIR)/leveldb/libmemenv.a
 DEFS += -I"$(CURDIR)/leveldb/include"
@@ -126,6 +162,14 @@ InfiniteRicksd.exe: $(OBJS:obj/%=obj/%)
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS) -lshlwapi -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
 	$(STRIP) InfiniteRicksd.exe
 
+InfiniteRicks-cli.exe: $(CLI_OBJS)
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS)
+	$(STRIP) InfiniteRicks-cli.exe
+
+InfiniteRicks-tx.exe: $(TX_OBJS)
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS)
+	$(STRIP) InfiniteRicks-tx.exe
+
 obj/scrypt-x86.o: scrypt-x86.S
 	$(CXX) -c $(CFLAGS) -MMD -o $@ $<
 
@@ -135,7 +179,7 @@ obj/scrypt-x86_64.o: scrypt-x86_64.S
 clean:
 	-rm -f obj/*.o
 	-rm -f obj/zerocoin/*.o
-	-rm -f InfiniteRicksd.exe
+	-rm -f InfiniteRicksd.exe InfiniteRicks-cli.exe InfiniteRicks-tx.exe
 	-rm -f obj/build.h
 	cd leveldb && TARGET_OS=OS_WINDOWS_CROSSCOMPILE $(MAKE) clean && cd ..
 
