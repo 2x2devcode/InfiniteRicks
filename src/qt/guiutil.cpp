@@ -16,6 +16,9 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QFileDialog>
+#include <QSettings>
+#include <QStorageInfo>
+#include <QDir>
 #include <QDesktopServices>
 #include <QThread>
 
@@ -211,6 +214,74 @@ QString getSaveFileName(QWidget *parent, const QString &caption,
         *selectedSuffixOut = selectedSuffix;
     }
     return result;
+}
+
+QString getExistingDirectory(QWidget *parent, const QString &caption, const QString &dir)
+{
+    return QFileDialog::getExistingDirectory(parent, caption, dir,
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+}
+
+QString getDefaultDataDir()
+{
+    return QString::fromStdString(GetDefaultDataDir().string());
+}
+
+QString expandDataDirPath(const QString &path)
+{
+    QString expanded = path.trimmed();
+    if (expanded.startsWith("~"))
+        expanded = QDir::homePath() + expanded.mid(1);
+    return QDir::fromNativeSeparators(QDir::cleanPath(expanded));
+}
+
+QString formatBytes(qint64 bytes)
+{
+    const qint64 kb = 1024;
+    const qint64 mb = kb * 1024;
+    const qint64 gb = mb * 1024;
+    if (bytes >= gb)
+        return QString::number(bytes / (double)gb, 'f', 2) + " GB";
+    if (bytes >= mb)
+        return QString::number(bytes / (double)mb, 'f', 2) + " MB";
+    if (bytes >= kb)
+        return QString::number(bytes / (double)kb, 'f', 2) + " KB";
+    return QString::number(bytes) + " B";
+}
+
+bool needChooseDataDirectory()
+{
+#if defined(Q_OS_ANDROID)
+    if (!mapArgs.count("-datadir")) {
+        boost::filesystem::path defaultDir = GetDefaultDataDir();
+        boost::filesystem::create_directories(defaultDir);
+        mapArgs["-datadir"] = defaultDir.string();
+    }
+    return false;
+#endif
+
+    if (mapArgs.count("-datadir"))
+        return false;
+
+    bool testnet = GetBoolArg("-testnet", false);
+    QSettings settings("InfiniteRicks", testnet ? "InfiniteRicks-Qt-testnet" : "InfiniteRicks-Qt");
+    if (settings.contains("strDataDir")) {
+        QString stored = settings.value("strDataDir").toString();
+        if (!stored.isEmpty()) {
+            mapArgs["-datadir"] = stored.toStdString();
+            return false;
+        }
+    }
+
+    boost::filesystem::path defaultDir = GetDefaultDataDir();
+    if (!boost::filesystem::exists(defaultDir))
+        return true;
+
+    if (!boost::filesystem::exists(defaultDir / "wallet.dat") &&
+        !boost::filesystem::exists(defaultDir / "InfiniteRicks.conf"))
+        return true;
+
+    return false;
 }
 
 Qt::ConnectionType blockingGUIThreadConnection()

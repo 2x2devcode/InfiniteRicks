@@ -7,6 +7,7 @@
 #include "optionsmodel.h"
 #include "guiutil.h"
 #include "guiconstants.h"
+#include "introdialog.h"
 
 #include "init.h"
 #include "ui_interface.h"
@@ -130,6 +131,9 @@ int main(int argc, char *argv[])
 
     // Command-line options take precedence:
     ParseParameters(argc, argv);
+
+    if (!IntroDialog::pickDataDirectory())
+        return 0;
 
     // ... then bitcoin.conf:
     if (!boost::filesystem::is_directory(GetDataDir(false)))
