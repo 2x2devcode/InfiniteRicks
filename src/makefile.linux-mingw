@@ -104,14 +104,17 @@ OBJS= \
 all: InfiniteRicksd.exe InfiniteRicks-cli.exe InfiniteRicks-tx.exe
 
 TOOL_LIBS= \
- -l boost_system-mgw44-mt-1_53 \
- -l boost_filesystem-mgw44-mt-1_53 \
- -l boost_program_options-mgw44-mt-1_53 \
- -l boost_thread-mgw44-mt-1_53 \
- -l boost_chrono-mgw44-mt-1_53 \
- -l ssl \
- -l crypto \
- -l kernel32 -l user32 -l gdi32 -l winspool -l shell32 -l ole32 -l oleaut32 -l uuid -l rpcrt4 -l advapi32 -l ws2_32 -l mswsock -l shlwapi
+ -lboost_system$(BOOST_LIB_SUFFIX) \
+ -lboost_filesystem$(BOOST_LIB_SUFFIX) \
+ -lboost_program_options$(BOOST_LIB_SUFFIX) \
+ -lboost_thread$(BOOST_LIB_SUFFIX) \
+ -lboost_chrono$(BOOST_LIB_SUFFIX) \
+ -lssl \
+ -lcrypto \
+ -lcrypt32 \
+ -lz \
+ -lmingwthrd \
+ -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lwinspool -lwinmm -lshell32 -lcomctl32 -lole32 -loleaut32 -luuid -lrpcrt4 -ladvapi32 -lws2_32 -lmswsock -lshlwapi
 
 CLI_OBJS= \
     obj/infinitericks-cli.o \
@@ -163,11 +166,11 @@ InfiniteRicksd.exe: $(OBJS:obj/%=obj/%)
 	$(STRIP) InfiniteRicksd.exe
 
 InfiniteRicks-cli.exe: $(CLI_OBJS)
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS)
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS) -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
 	$(STRIP) InfiniteRicks-cli.exe
 
 InfiniteRicks-tx.exe: $(TX_OBJS)
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS)
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS) -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
 	$(STRIP) InfiniteRicks-tx.exe
 
 obj/scrypt-x86.o: scrypt-x86.S
