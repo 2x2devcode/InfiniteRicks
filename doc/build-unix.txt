@@ -14,7 +14,14 @@ To Build
 --------
 
 cd src/
-make -f makefile.unix            # Headless InfiniteRicks
+make -f makefile.unix            # Headless InfiniteRicks (daemon + cli + tx)
+make -f makefile.unix InfiniteRicksd
+make -f makefile.unix InfiniteRicks-cli
+make -f makefile.unix InfiniteRicks-tx
+
+The makefile must be run from the src/ directory (not the repository root).
+InfiniteRicks-cli and InfiniteRicks-tx require branch cursor/infinitericks-cli-tx-ab49
+(or PR #32 merged into your checkout).
 
 See readme-qt.rst for instructions on building InfiniteRicks QT,
 the graphical InfiniteRicks.
