@@ -47,6 +47,9 @@ using namespace json_spirit;
 void ThreadRPCServer2(void* parg);
 void ThreadRPCServer3(void* parg);
 
+void ThreadRPCServer2(void* parg);
+void ThreadRPCServer3(void* parg);
+
 static std::string strRPCUserColonPass;
 
 const Object emptyobj;
