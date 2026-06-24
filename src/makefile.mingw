@@ -4,6 +4,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 USE_UPNP:=0
+BOOST_LIB_SUFFIX?=-mgw44-mt-1_53
 
 INCLUDEPATHS= \
  -I"C:\boost-1.50.0-mgw" \
