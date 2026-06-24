@@ -9,6 +9,7 @@
 #include "ui_interface.h"
 #include "base58.h"
 #include "bitcoinrpc.h"
+#include "rpcclient.h"
 #include "db.h"
 
 #undef printf
@@ -44,12 +45,11 @@ using namespace boost::asio;
 using namespace json_spirit;
 
 void ThreadRPCServer2(void* parg);
+void ThreadRPCServer3(void* parg);
 
 static std::string strRPCUserColonPass;
 
 const Object emptyobj;
-
-#include "rpcclient.h"
 
 static inline unsigned short GetDefaultRPCPort()
 {
