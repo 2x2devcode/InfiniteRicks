@@ -84,11 +84,20 @@ cd InfiniteRicks/src/leveldb
 make clean
 make libleveldb.a libmemenv.a
 ```
-Return to the source directory, and compile the daemon:
+Return to the source directory, and compile the daemon and tools:
 ```
 cd ..
 make -f makefile.unix
 ```
+This builds `InfiniteRicksd`, `InfiniteRicks-cli`, and `InfiniteRicks-tx`.
+To build only one binary:
+```
+make -f makefile.unix InfiniteRicksd
+make -f makefile.unix InfiniteRicks-cli
+make -f makefile.unix InfiniteRicks-tx
+```
+If `make` reports `No rule to make target 'InfiniteRicks-cli'`, you are either
+not in `src/` or your checkout predates the cli/tx utilities (merge PR #32).
 Strip the file to make it smaller, then relocate it:
 ```
 strip InfiniteRicksd
