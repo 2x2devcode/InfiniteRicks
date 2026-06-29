@@ -127,6 +127,8 @@ def rpc_block_height(url: str, user: str, password: str) -> Optional[int]:
 
 
 def write_readme(path: Path, network: str, package_name: str) -> None:
+    path_suffix = "/testnet" if network == "testnet" else ""
+    win_path_suffix = "\\testnet" if network == "testnet" else ""
     path.write_text(
         f"""InfiniteRicks blockchain bootstrap package
 ============================================
@@ -138,9 +140,9 @@ IMPORT (bootstrap.dat only)
 ---------------------------
 1. Close InfiniteRicks / InfiniteRicks-qt completely.
 2. Open the wallet data directory:
-   - Linux:   ~/.InfiniteRicks{'/testnet' if network == 'testnet' else ''}
-   - macOS:   ~/Library/Application Support/InfiniteRicks{'/testnet' if network == 'testnet' else ''}
-   - Windows: %APPDATA%\\InfiniteRicks{'\\testnet' if network == 'testnet' else ''}
+   - Linux:   ~/.InfiniteRicks{path_suffix}
+   - macOS:   ~/Library/Application Support/InfiniteRicks{path_suffix}
+   - Windows: %APPDATA%\\InfiniteRicks{win_path_suffix}
 3. Copy bootstrap.dat into that folder (replace if prompted).
 4. Start the wallet. It imports automatically and renames the file to bootstrap.dat.old.
 5. Wait for import and verification to finish, then let the wallet sync remaining blocks.
