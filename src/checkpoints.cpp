@@ -28,21 +28,22 @@ namespace Checkpoints
     //
     static MapCheckpoints mapCheckpoints =
         boost::assign::map_list_of
-        ( 0,      hashGenesisBlock )
+        ( 0,       hashGenesisBlock )
+        ( 3000,    uint256("000003f9b22486b303619562cc7456fa3bd204a73312785836e9ce55d54bf88a") )
+        ( 5720,    uint256("41bed32902d5f95e1cb9d550008251f86744bb27dd0eb7d6ba377d43198ec228") )
+        ( 115000,  uint256("2c223d88154c9d8cc062ace3d6002288d458e6ff034a2397939540fce7542bad") )
+        ( 251106,  uint256("2410cff3bf2fe8ef1589ecb8965ed1e45c4bfff744912e51a20e5caf288ffdb7") )
+        ( 406666,  uint256("e0ea780adb7dc615b9b7cd4880cb269ea84f8c8e7271d23cbe6f4cfc8fefbeff") )
+        ( 690100,  uint256("2b8edeb5bf938854243a3f49571023708433ca231480cc9e840b690448568a12") )
+        ( 851250,  uint256("b46015acbc8108a3875356b94ca1a62d809cd60ad4da7fb6d808897eb6d29557") )
+        ( 1000250, uint256("138290a9a09b82ec500116beb5f919a24ff4024e78d77147017f9010dbf88bdd") )
+        ( 1330250, uint256("9fd3b78d8ee0852ba523d89d39c9edd95357b28b5d49582941e874c4f24e2d67") )
     ;
 
-    // TestNet has no checkpoints
+    // Testnet: genesis only (hardened checkpoints are on mainnet above)
     static MapCheckpoints mapCheckpointsTestnet =
         boost::assign::map_list_of
         ( 0, hashGenesisBlockTestNet )
-        ( 5720,  uint256("41bed32902d5f95e1cb9d550008251f86744bb27dd0eb7d6ba377d43198ec228"))
-        ( 115000,  uint256("2c223d88154c9d8cc062ace3d6002288d458e6ff034a2397939540fce7542bad"))
-        ( 251106,  uint256("2410cff3bf2fe8ef1589ecb8965ed1e45c4bfff744912e51a20e5caf288ffdb7"))
-        ( 406666,  uint256("e0ea780adb7dc615b9b7cd4880cb269ea84f8c8e7271d23cbe6f4cfc8fefbeff"))
-        ( 690100,  uint256("2b8edeb5bf938854243a3f49571023708433ca231480cc9e840b690448568a12"))
-        ( 851250,  uint256("b46015acbc8108a3875356b94ca1a62d809cd60ad4da7fb6d808897eb6d29557"))
-        ( 1000250,  uint256("138290a9a09b82ec500116beb5f919a24ff4024e78d77147017f9010dbf88bdd"))
-        ( 1330250,  uint256("9fd3b78d8ee0852ba523d89d39c9edd95357b28b5d49582941e874c4f24e2d67"))
         ;
 
     bool CheckHardened(int nHeight, const uint256& hash)

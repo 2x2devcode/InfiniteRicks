@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>560</width>
-    <height>280</height>
+    <width>580</width>
+    <height>360</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -52,6 +52,50 @@
       </widget>
      </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="bootstrapCheckBox">
+     <property name="text">
+      <string>Does it have Bootstrap?</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="bootstrapLayout">
+     <item>
+      <widget class="QLineEdit" name="bootstrapFile">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="placeholderText">
+        <string>Select bootstrap.dat or another .dat blockchain file</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="browseBootstrapButton">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="text">
+        <string>Browse...</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QLabel" name="bootstrapHintLabel">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>On first startup the wallet will import and validate the bootstrap file automatically.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
    </item>
    <item>
     <widget class="QLabel" name="errorLabel">
@@ -122,6 +166,9 @@
  <tabstops>
   <tabstop>dataDirectory</tabstop>
   <tabstop>browseButton</tabstop>
+  <tabstop>bootstrapCheckBox</tabstop>
+  <tabstop>bootstrapFile</tabstop>
+  <tabstop>browseBootstrapButton</tabstop>
   <tabstop>okButton</tabstop>
   <tabstop>cancelButton</tabstop>
  </tabstops>

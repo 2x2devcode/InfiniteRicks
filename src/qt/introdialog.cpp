@@ -4,10 +4,12 @@
 
 #include "util.h"
 
+#include <QFile>
 #include <QFileDialog>
-#include <QMessageBox>
 #include <QSettings>
 #include <QStorageInfo>
+
+#include <boost/filesystem.hpp>
 
 IntroDialog::IntroDialog(QWidget *parent) :
     QDialog(parent),
@@ -16,6 +18,7 @@ IntroDialog::IntroDialog(QWidget *parent) :
 {
     ui->setupUi(this);
     setDataDirectory(GUIUtil::getDefaultDataDir());
+    updateBootstrapWidgets(false);
 }
 
 IntroDialog::~IntroDialog()
@@ -83,6 +86,17 @@ bool IntroDialog::verifyAndSetDataDirectory(const QString &dir)
     return true;
 }
 
+void IntroDialog::updateBootstrapWidgets(bool enabled)
+{
+    ui->bootstrapFile->setEnabled(enabled);
+    ui->browseBootstrapButton->setEnabled(enabled);
+    ui->bootstrapHintLabel->setEnabled(enabled);
+    if (!enabled) {
+        bootstrapFile.clear();
+        ui->bootstrapFile->clear();
+    }
+}
+
 void IntroDialog::on_dataDirectory_textEdited(const QString &arg1)
 {
     fOverriddenDir = true;
@@ -98,6 +112,55 @@ void IntroDialog::on_browseButton_clicked()
     }
 }
 
+void IntroDialog::on_bootstrapCheckBox_toggled(bool checked)
+{
+    updateBootstrapWidgets(checked);
+    ui->errorLabel->clear();
+}
+
+void IntroDialog::on_browseBootstrapButton_clicked()
+{
+    QString file = QFileDialog::getOpenFileName(
+        this,
+        tr("Select bootstrap file"),
+        QString(),
+        tr("Blockchain data (*.dat);;All files (*.*)"));
+    if (file.isEmpty())
+        return;
+
+    bootstrapFile = file;
+    ui->bootstrapFile->setText(bootstrapFile);
+    ui->errorLabel->clear();
+}
+
+bool IntroDialog::installBootstrapFile(const QString &dataPath)
+{
+    if (!ui->bootstrapCheckBox->isChecked())
+        return true;
+
+    if (bootstrapFile.isEmpty() || !QFile::exists(bootstrapFile)) {
+        ui->errorLabel->setText(tr("Please select a bootstrap file."));
+        return false;
+    }
+
+    boost::filesystem::path dest = boost::filesystem::path(dataPath.toStdString()) / "bootstrap.dat";
+    try {
+#if BOOST_VERSION >= 104000
+        boost::filesystem::copy_file(
+            bootstrapFile.toStdString(),
+            dest,
+            boost::filesystem::copy_option::overwrite_if_exists);
+#else
+        boost::filesystem::copy_file(bootstrapFile.toStdString(), dest);
+#endif
+    } catch (const boost::filesystem::filesystem_error &) {
+        ui->errorLabel->setText(tr("Could not copy the bootstrap file into the data directory."));
+        return false;
+    }
+
+    return true;
+}
+
 void IntroDialog::on_okButton_clicked()
 {
     if (!verifyAndSetDataDirectory(ui->dataDirectory->text()))
@@ -110,6 +173,9 @@ void IntroDialog::on_okButton_clicked()
         ui->errorLabel->setText(tr("Could not create the data directory."));
         return;
     }
+
+    if (!installBootstrapFile(dataDir))
+        return;
 
     accept();
 }
