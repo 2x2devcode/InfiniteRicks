@@ -18,7 +18,9 @@ IntroDialog::IntroDialog(QWidget *parent) :
 {
     ui->setupUi(this);
     setDataDirectory(GUIUtil::getDefaultDataDir());
+#if !defined(Q_OS_ANDROID)
     updateBootstrapWidgets(false);
+#endif
 }
 
 IntroDialog::~IntroDialog()
@@ -88,6 +90,7 @@ bool IntroDialog::verifyAndSetDataDirectory(const QString &dir)
 
 void IntroDialog::updateBootstrapWidgets(bool enabled)
 {
+#if !defined(Q_OS_ANDROID)
     ui->bootstrapFile->setEnabled(enabled);
     ui->browseBootstrapButton->setEnabled(enabled);
     ui->bootstrapHintLabel->setEnabled(enabled);
@@ -95,6 +98,7 @@ void IntroDialog::updateBootstrapWidgets(bool enabled)
         bootstrapFile.clear();
         ui->bootstrapFile->clear();
     }
+#endif
 }
 
 void IntroDialog::on_dataDirectory_textEdited(const QString &arg1)
@@ -135,6 +139,10 @@ void IntroDialog::on_browseBootstrapButton_clicked()
 
 bool IntroDialog::installBootstrapFile(const QString &dataPath)
 {
+#if defined(Q_OS_ANDROID)
+    (void)dataPath;
+    return true;
+#else
     if (!ui->bootstrapCheckBox->isChecked())
         return true;
 
@@ -159,6 +167,7 @@ bool IntroDialog::installBootstrapFile(const QString &dataPath)
     }
 
     return true;
+#endif
 }
 
 void IntroDialog::on_okButton_clicked()
