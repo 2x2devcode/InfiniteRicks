@@ -23,6 +23,7 @@
 #include <QLibraryInfo>
 #include <QFile>
 #include <QFont>
+#include <QSettings>
 
 #if defined(BITCOIN_NEED_QT_PLUGINS) && !defined(_BITCOIN_QT_PLUGINS_INCLUDED)
 #define _BITCOIN_QT_PLUGINS_INCLUDED
@@ -189,6 +190,9 @@ int main(int argc, char *argv[])
     SoftSetBoolArg("-printtoconsole", true);
 #endif
 
+    // Remember whether -datadir came from the command line (before IntroDialog may set it)
+    const bool fDataDirFromCmdLine = mapArgs.count("-datadir") != 0;
+
     if (!IntroDialog::pickDataDirectory())
         return 0;
 
@@ -198,13 +202,38 @@ int main(int argc, char *argv[])
         // This message can not be translated, as translation is not initialized yet
         // (which not yet possible because lang=XX can be overridden in bitcoin.conf in the data directory)
         const std::string msg = strprintf("Error: Specified data directory \"%s\" does not exist.", mapArgs["-datadir"].c_str());
+        if (fDataDirFromCmdLine) {
+#if defined(Q_OS_ANDROID)
+            IR_LOGE("%s", msg.c_str());
+            fprintf(stderr, "%s\n", msg.c_str());
+#else
+            QMessageBox::critical(0, "InfiniteRicks", QString::fromStdString(msg));
+#endif
+            return 1;
+        }
+
 #if defined(Q_OS_ANDROID)
         IR_LOGE("%s", msg.c_str());
         fprintf(stderr, "%s\n", msg.c_str());
-#else
-        QMessageBox::critical(0, "InfiniteRicks", QString::fromStdString(msg));
-#endif
         return 1;
+#else
+        // Saved data directory disappeared: open the first-run picker instead of aborting
+        mapArgs.erase("-datadir");
+        {
+            bool testnet = GetBoolArg("-testnet", false);
+            QSettings settings("InfiniteRicks", testnet ? "InfiniteRicks-Qt-testnet" : "InfiniteRicks-Qt");
+            settings.remove("strDataDir");
+        }
+        if (!IntroDialog::pickDataDirectory())
+            return 0;
+        if (!boost::filesystem::is_directory(GetDataDir(false)))
+        {
+            QMessageBox::critical(0, "InfiniteRicks",
+                QString("Error: Specified data directory \"%1\" does not exist.")
+                    .arg(QString::fromStdString(mapArgs["-datadir"])));
+            return 1;
+        }
+#endif
     }
     ReadConfigFile(mapArgs, mapMultiArgs);
 
