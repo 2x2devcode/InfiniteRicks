@@ -310,17 +310,24 @@ bool needChooseDataDirectory()
     return false;
 #endif
 
+    // Explicit CLI -datadir: never show the intro (caller reports missing path)
     if (mapArgs.count("-datadir"))
         return false;
 
     bool testnet = GetBoolArg("-testnet", false);
     QSettings settings("InfiniteRicks", testnet ? "InfiniteRicks-Qt-testnet" : "InfiniteRicks-Qt");
     if (settings.contains("strDataDir")) {
-        QString stored = settings.value("strDataDir").toString();
+        QString stored = expandDataDirPath(settings.value("strDataDir").toString());
         if (!stored.isEmpty()) {
-            mapArgs["-datadir"] = stored.toStdString();
-            return false;
+            boost::filesystem::path storedPath(stored.toStdString());
+            if (boost::filesystem::is_directory(storedPath)) {
+                mapArgs["-datadir"] = storedPath.string();
+                return false;
+            }
         }
+        // Saved path is gone or invalid — open the picker like first run
+        settings.remove("strDataDir");
+        return true;
     }
 
     boost::filesystem::path defaultDir = GetDefaultDataDir();

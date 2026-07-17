@@ -14,6 +14,7 @@
 
 #include <QAbstractItemDelegate>
 #include <QPainter>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -62,8 +63,10 @@ public:
             foreground = qvariant_cast<QColor>(value);
         }
 
+        QFontMetrics fm(painter->font());
         painter->setPen(foreground);
-        painter->drawText(addressRect, Qt::AlignLeft|Qt::AlignVCenter, address);
+        painter->drawText(addressRect, Qt::AlignLeft|Qt::AlignVCenter,
+            fm.elidedText(address, Qt::ElideRight, addressRect.width()));
 
         if(amount < 0)
         {
@@ -87,10 +90,23 @@ public:
         {
             amountText = QString("[") + amountText + QString("]");
         }
+#if QT_VERSION >= 0x050B00
+        const int amountWidth = fm.horizontalAdvance(amountText);
+#else
+        const int amountWidth = fm.width(amountText);
+#endif
+        // Keep date and amount on separate horizontal ranges so long RICK
+        // amounts cannot overwrite the date/time (which looked like a broken wrap).
+        const int dateAmountGap = 8;
+        QRect dateRect(amountRect.left(), amountRect.top(),
+                       qMax(0, amountRect.width() - amountWidth - dateAmountGap),
+                       amountRect.height());
         painter->drawText(amountRect, Qt::AlignRight|Qt::AlignVCenter, amountText);
 
         painter->setPen(option.palette.color(QPalette::Text));
-        painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
+        const QString dateText = GUIUtil::dateTimeStr(date);
+        painter->drawText(dateRect, Qt::AlignLeft|Qt::AlignVCenter,
+            fm.elidedText(dateText, Qt::ElideRight, dateRect.width()));
 
         painter->restore();
     }
@@ -101,7 +117,10 @@ public:
         Q_UNUSED(index);
         return QSize(option.rect.width() > 0 ? option.rect.width() : 320, 56);
 #else
-        return QSize(DECORATION_SIZE, DECORATION_SIZE);
+        Q_UNUSED(option);
+        Q_UNUSED(index);
+        // Two text lines + padding; match listTransactions minimum height math
+        return QSize(DECORATION_SIZE, DECORATION_SIZE + 14);
 #endif
     }
 
