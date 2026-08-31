@@ -4,12 +4,26 @@
 #include "clientmodel.h"
 #include "bitcoinrpc.h"
 #include "guiutil.h"
+#include "peertablemodel.h"
+#include "bantablemodel.h"
 
+#include "net.h"
+#include "netbase.h"
+#include "util.h"
+
+#include <QApplication>
+#include <QCursor>
+#include <QHeaderView>
+#include <QHideEvent>
+#include <QItemSelection>
 #include <QTime>
 #include <QTimer>
 #include <QThread>
 #include <QTextEdit>
 #include <QKeyEvent>
+#include <QMenu>
+#include <QMessageBox>
+#include <QShowEvent>
 #include <QUrl>
 #include <QScrollBar>
 
@@ -23,6 +37,14 @@ const int CONSOLE_HISTORY = 50;
 
 const QSize ICON_SIZE(24, 24);
 
+const QString SALVAGEWALLET("-salvagewallet");
+const QString RESCAN("-rescan");
+const QString ZAPTXES1("-zapwallettxes=1");
+const QString ZAPTXES2("-zapwallettxes=2");
+const QString UPGRADEWALLET("-upgradewallet");
+const QString REINDEX("-reindex");
+const QString RESYNC("-resync");
+
 const struct {
     const char *url;
     const char *source;
@@ -33,6 +55,25 @@ const struct {
     {"misc", ":/icons/tx_inout"},
     {NULL, NULL}
 };
+
+static QString FormatDurationStr(int64_t secs)
+{
+    if (secs < 0)
+        secs = 0;
+    QString result;
+    int64_t days = secs / 86400;
+    int64_t hours = (secs % 86400) / 3600;
+    int64_t minutes = (secs % 3600) / 60;
+    int64_t seconds = secs % 60;
+    if (days)
+        result = QString("%1d ").arg(days);
+    if (hours || days)
+        result += QString("%1h ").arg(hours);
+    if (minutes || hours || days)
+        result += QString("%1m ").arg(minutes);
+    result += QString("%1s").arg(seconds);
+    return result;
+}
 
 /* Object for executing console RPC commands in a separate thread.
 */
@@ -188,7 +229,13 @@ void RPCExecutor::request(const QString &command)
 RPCConsole::RPCConsole(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::RPCConsole),
-    historyPtr(0)
+    clientModel(0),
+    peerModel(0),
+    banModel(0),
+    historyPtr(0),
+    cachedNodeid(-1),
+    peersTableContextMenu(0),
+    banTableContextMenu(0)
 {
     ui->setupUi(this);
 
@@ -202,6 +249,19 @@ RPCConsole::RPCConsole(QWidget *parent) :
     ui->messagesWidget->installEventFilter(this);
 
     connect(ui->clearButton, SIGNAL(clicked()), this, SLOT(clear()));
+
+#ifndef Q_OS_ANDROID
+    connect(ui->btn_salvagewallet, SIGNAL(clicked()), this, SLOT(walletSalvage()));
+    connect(ui->btn_rescan, SIGNAL(clicked()), this, SLOT(walletRescan()));
+    connect(ui->btn_zapwallettxes1, SIGNAL(clicked()), this, SLOT(walletZaptxes1()));
+    connect(ui->btn_zapwallettxes2, SIGNAL(clicked()), this, SLOT(walletZaptxes2()));
+    connect(ui->btn_upgradewallet, SIGNAL(clicked()), this, SLOT(walletUpgrade()));
+    connect(ui->btn_reindex, SIGNAL(clicked()), this, SLOT(walletReindex()));
+    connect(ui->btn_resync, SIGNAL(clicked()), this, SLOT(walletResync()));
+
+    ui->peerHeading->setText(tr("Select a peer to view detailed information."));
+    ui->detailWidget->hide();
+#endif
 
     // set OpenSSL version label
     ui->openSSLVersion->setText(OpenSSL_version(OPENSSL_VERSION));
@@ -265,13 +325,75 @@ void RPCConsole::setClientModel(ClientModel *model)
         // Provide initial values
         ui->clientVersion->setText(model->formatFullVersion());
         ui->clientName->setText(model->clientName());
-        ui->buildDate->setText(model->formatBuildDate());
+        ui->dataDir->setText(QString::fromStdString(GetDataDir().string()));
         ui->startupTime->setText(model->formatClientStartupTime());
 
         setNumConnections(model->getNumConnections());
         ui->isTestNet->setChecked(model->isTestNet());
 
         setNumBlocks(model->getNumBlocks(), model->getNumBlocksOfPeers());
+
+#ifndef Q_OS_ANDROID
+        boost::filesystem::path walletPath = GetDataDir() / GetArg("-wallet", "wallet.dat");
+        ui->wallet_path->setText(QString::fromStdString(walletPath.string()));
+
+        peerModel = new PeerTableModel(model);
+        peerModel->setRefreshDuringIbd(true);
+        ui->peerWidget->setModel(peerModel);
+        ui->peerWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+        ui->peerWidget->horizontalHeader()->setResizeMode(PeerTableModel::NodeId, QHeaderView::ResizeToContents);
+        ui->peerWidget->horizontalHeader()->setResizeMode(PeerTableModel::Address, QHeaderView::Stretch);
+        ui->peerWidget->horizontalHeader()->setResizeMode(PeerTableModel::UserAgent, QHeaderView::ResizeToContents);
+        ui->peerWidget->horizontalHeader()->setResizeMode(PeerTableModel::Ping, QHeaderView::ResizeToContents);
+        ui->peerWidget->setColumnWidth(PeerTableModel::Address, ADDRESS_COLUMN_WIDTH);
+        ui->peerWidget->setColumnWidth(PeerTableModel::UserAgent, SUBVERSION_COLUMN_WIDTH);
+        ui->peerWidget->setColumnWidth(PeerTableModel::Ping, PING_COLUMN_WIDTH);
+        peerModel->refresh();
+
+        QAction *disconnectAction = new QAction(tr("&Disconnect Node"), this);
+        QAction *banAction1h = new QAction(tr("Ban Node for") + " " + tr("1 &hour"), this);
+        QAction *banAction24h = new QAction(tr("Ban Node for") + " " + tr("1 &day"), this);
+        QAction *banAction7d = new QAction(tr("Ban Node for") + " " + tr("1 &week"), this);
+        QAction *banAction365d = new QAction(tr("Ban Node for") + " " + tr("1 &year"), this);
+
+        peersTableContextMenu = new QMenu(this);
+        peersTableContextMenu->addAction(disconnectAction);
+        peersTableContextMenu->addAction(banAction1h);
+        peersTableContextMenu->addAction(banAction24h);
+        peersTableContextMenu->addAction(banAction7d);
+        peersTableContextMenu->addAction(banAction365d);
+
+        connect(ui->peerWidget, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showPeersTableContextMenu(QPoint)));
+        connect(disconnectAction, SIGNAL(triggered()), this, SLOT(disconnectSelectedNode()));
+        connect(banAction1h, SIGNAL(triggered()), this, SLOT(banNode1h()));
+        connect(banAction24h, SIGNAL(triggered()), this, SLOT(banNode24h()));
+        connect(banAction7d, SIGNAL(triggered()), this, SLOT(banNode7d()));
+        connect(banAction365d, SIGNAL(triggered()), this, SLOT(banNode365d()));
+        connect(ui->peerWidget->selectionModel(), SIGNAL(selectionChanged(QItemSelection,QItemSelection)),
+                this, SLOT(peerSelected(QItemSelection,QItemSelection)));
+        connect(peerModel, SIGNAL(layoutChanged()), this, SLOT(peerLayoutChanged()));
+        connect(peerModel, SIGNAL(modelReset()), this, SLOT(peerLayoutChanged()));
+
+        banModel = new BanTableModel(model);
+        ui->banlistWidget->setModel(banModel);
+        ui->banlistWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+        ui->banlistWidget->horizontalHeader()->setResizeMode(BanTableModel::Address, QHeaderView::Stretch);
+        ui->banlistWidget->horizontalHeader()->setResizeMode(BanTableModel::BannedUntil, QHeaderView::ResizeToContents);
+        ui->banlistWidget->setColumnWidth(BanTableModel::Address, BANSUBNET_COLUMN_WIDTH);
+        ui->banlistWidget->setColumnWidth(BanTableModel::BannedUntil, BANTIME_COLUMN_WIDTH);
+        banModel->refresh();
+
+        QAction *unbanAction = new QAction(tr("&Unban Node"), this);
+        banTableContextMenu = new QMenu(this);
+        banTableContextMenu->addAction(unbanAction);
+
+        connect(ui->banlistWidget, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showBanTableContextMenu(QPoint)));
+        connect(unbanAction, SIGNAL(triggered()), this, SLOT(unbanSelectedNode()));
+        connect(ui->banlistWidget, SIGNAL(clicked(QModelIndex)), this, SLOT(clearSelectedNode()));
+        connect(banModel, SIGNAL(layoutChanged()), this, SLOT(showOrHideBanTableIfRequired()));
+        connect(banModel, SIGNAL(modelReset()), this, SLOT(showOrHideBanTableIfRequired()));
+        showOrHideBanTableIfRequired();
+#endif
     }
 }
 
@@ -417,6 +539,15 @@ void RPCConsole::on_tabWidget_currentChanged(int index)
     {
         ui->lineEdit->setFocus();
     }
+#ifndef Q_OS_ANDROID
+    else if (ui->tabWidget->widget(index) == ui->tab_network)
+    {
+        if (peerModel)
+            peerModel->refresh();
+        if (banModel)
+            banModel->refresh();
+    }
+#endif
 }
 
 void RPCConsole::on_openDebugLogfileButton_clicked()
@@ -434,6 +565,286 @@ void RPCConsole::on_showCLOptionsButton_clicked()
 {
     GUIUtil::HelpMessageBox help;
     help.exec();
+}
+
+void RPCConsole::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    if (peerModel)
+        peerModel->startAutoRefresh();
+    if (banModel)
+        banModel->startAutoRefresh();
+}
+
+void RPCConsole::hideEvent(QHideEvent *event)
+{
+    QDialog::hideEvent(event);
+    if (peerModel)
+        peerModel->stopAutoRefresh();
+    if (banModel)
+        banModel->stopAutoRefresh();
+}
+
+#ifndef Q_OS_ANDROID
+void RPCConsole::peerSelected(const QItemSelection& selected, const QItemSelection& deselected)
+{
+    Q_UNUSED(deselected);
+
+    if (!peerModel || selected.indexes().isEmpty())
+        return;
+
+    const CNodeStats *stats = peerModel->nodeStats(selected.indexes().first().row());
+    if (stats)
+        updateNodeDetail(stats);
+}
+
+void RPCConsole::peerLayoutChanged()
+{
+    if (!peerModel || cachedNodeid == -1)
+        return;
+
+    const CNodeStats *stats = NULL;
+    bool unselect = false;
+    bool reselect = false;
+    int selectedRow = -1;
+    QModelIndexList selected = ui->peerWidget->selectionModel()->selectedIndexes();
+    if (!selected.isEmpty())
+        selectedRow = selected.first().row();
+
+    int detailNodeRow = peerModel->getRowByNodeId(cachedNodeid);
+    if (detailNodeRow < 0)
+    {
+        unselect = true;
+    }
+    else
+    {
+        if (detailNodeRow != selectedRow)
+        {
+            unselect = true;
+            reselect = true;
+        }
+        stats = peerModel->nodeStats(detailNodeRow);
+    }
+
+    if (unselect && selectedRow >= 0)
+        clearSelectedNode();
+    if (reselect)
+        ui->peerWidget->selectRow(detailNodeRow);
+    if (stats)
+        updateNodeDetail(stats);
+}
+
+void RPCConsole::updateNodeDetail(const CNodeStats *stats)
+{
+    cachedNodeid = stats->nodeid;
+
+    QString heading(QString::fromStdString(stats->addrName) + " ");
+    heading += tr("(node id: %1)").arg(QString::number(stats->nodeid));
+    ui->peerHeading->setText(heading);
+    ui->peerServices->setText(QString::fromStdString(strprintf("%016" PRIx64, stats->nServices)));
+    ui->peerLastSend->setText(stats->nLastSend ? FormatDurationStr(GetTime() - stats->nLastSend) : tr("never"));
+    ui->peerLastRecv->setText(stats->nLastRecv ? FormatDurationStr(GetTime() - stats->nLastRecv) : tr("never"));
+    ui->peerConnTime->setText(FormatDurationStr(GetTime() - stats->nTimeConnected));
+    if (stats->dPingTime < 0.0)
+        ui->peerPingTime->setText(tr("N/A"));
+    else
+        ui->peerPingTime->setText(tr("%1 ms").arg(QString::number(stats->dPingTime * 1000.0, 'f', 1)));
+    ui->peerVersion->setText(QString::number(stats->nVersion));
+    ui->peerSubversion->setText(QString::fromStdString(stats->strSubVer));
+    ui->peerDirection->setText(stats->fInbound ? tr("Inbound") : tr("Outbound"));
+    ui->peerHeight->setText(QString::number(stats->nStartingHeight));
+    ui->peerBanScore->setText(QString::number(stats->nMisbehavior));
+    ui->detailWidget->show();
+}
+
+void RPCConsole::showPeersTableContextMenu(const QPoint& point)
+{
+    if (ui->peerWidget->indexAt(point).isValid() && peersTableContextMenu)
+        peersTableContextMenu->exec(QCursor::pos());
+}
+
+void RPCConsole::showBanTableContextMenu(const QPoint& point)
+{
+    if (ui->banlistWidget->indexAt(point).isValid() && banTableContextMenu)
+        banTableContextMenu->exec(QCursor::pos());
+}
+
+void RPCConsole::disconnectSelectedNode()
+{
+    if (!peerModel)
+        return;
+
+    QModelIndexList selection = ui->peerWidget->selectionModel()->selectedIndexes();
+    if (selection.isEmpty())
+        return;
+
+    int nodeid = peerModel->data(
+        peerModel->index(selection.first().row(), PeerTableModel::NodeId),
+        Qt::DisplayRole).toInt();
+    if (DisconnectNode(nodeid))
+        clearSelectedNode();
+}
+
+void RPCConsole::banNode1h()
+{
+    banSelectedNode(60 * 60);
+}
+
+void RPCConsole::banNode24h()
+{
+    banSelectedNode(60 * 60 * 24);
+}
+
+void RPCConsole::banNode7d()
+{
+    banSelectedNode(60 * 60 * 24 * 7);
+}
+
+void RPCConsole::banNode365d()
+{
+    banSelectedNode(60 * 60 * 24 * 365);
+}
+
+void RPCConsole::banSelectedNode(int bantime)
+{
+    if (!peerModel)
+        return;
+
+    QModelIndexList selection = ui->peerWidget->selectionModel()->selectedIndexes();
+    if (selection.isEmpty())
+        return;
+
+    QString node = peerModel->data(
+        peerModel->index(selection.first().row(), PeerTableModel::Address),
+        Qt::DisplayRole).toString();
+    std::string host;
+    int port = 0;
+    SplitHostPort(node.toStdString(), port, host);
+
+    std::vector<CNetAddr> addresses;
+    if (!LookupHost(host.c_str(), addresses, 1, false) || addresses.empty())
+        return;
+
+    Ban(addresses.front(), bantime);
+    clearSelectedNode();
+    if (banModel)
+        banModel->refresh();
+    showOrHideBanTableIfRequired();
+}
+
+void RPCConsole::unbanSelectedNode()
+{
+    if (!banModel)
+        return;
+
+    QModelIndexList selection = ui->banlistWidget->selectionModel()->selectedIndexes();
+    if (selection.isEmpty())
+        return;
+
+    QString node = banModel->data(
+        banModel->index(selection.first().row(), BanTableModel::Address),
+        Qt::DisplayRole).toString();
+    CNetAddr addr(node.toStdString(), false);
+    if (addr.IsValid() && Unban(addr))
+    {
+        banModel->refresh();
+        showOrHideBanTableIfRequired();
+    }
+}
+
+void RPCConsole::clearSelectedNode()
+{
+    ui->peerWidget->selectionModel()->clearSelection();
+    cachedNodeid = -1;
+    ui->detailWidget->hide();
+    ui->peerHeading->setText(tr("Select a peer to view detailed information."));
+}
+
+void RPCConsole::showOrHideBanTableIfRequired()
+{
+    if (!banModel)
+        return;
+
+    bool visible = banModel->shouldShow();
+    ui->banlistWidget->setVisible(visible);
+    ui->banHeading->setVisible(visible);
+}
+#else
+void RPCConsole::peerSelected(const QItemSelection&, const QItemSelection&) {}
+void RPCConsole::peerLayoutChanged() {}
+void RPCConsole::showPeersTableContextMenu(const QPoint&) {}
+void RPCConsole::showBanTableContextMenu(const QPoint&) {}
+void RPCConsole::showOrHideBanTableIfRequired() {}
+void RPCConsole::clearSelectedNode() {}
+void RPCConsole::disconnectSelectedNode() {}
+void RPCConsole::banSelectedNode(int) {}
+void RPCConsole::banNode1h() {}
+void RPCConsole::banNode24h() {}
+void RPCConsole::banNode7d() {}
+void RPCConsole::banNode365d() {}
+void RPCConsole::unbanSelectedNode() {}
+void RPCConsole::updateNodeDetail(const CNodeStats*) {}
+#endif
+
+void RPCConsole::walletSalvage()
+{
+    buildParameterlist(SALVAGEWALLET);
+}
+
+void RPCConsole::walletRescan()
+{
+    buildParameterlist(RESCAN);
+}
+
+void RPCConsole::walletZaptxes1()
+{
+    buildParameterlist(ZAPTXES1);
+}
+
+void RPCConsole::walletZaptxes2()
+{
+    buildParameterlist(ZAPTXES2);
+}
+
+void RPCConsole::walletUpgrade()
+{
+    buildParameterlist(UPGRADEWALLET);
+}
+
+void RPCConsole::walletReindex()
+{
+    buildParameterlist(REINDEX);
+}
+
+void RPCConsole::walletResync()
+{
+    QString warning = tr("This will delete the local blockchain data and synchronize the complete blockchain from scratch.<br /><br />");
+    warning += tr("This can take a long time and download a large amount of data.<br /><br />");
+    warning += tr("Your transactions and funds will be visible again after synchronization completes.<br /><br />");
+    warning += tr("Do you want to continue?");
+    QMessageBox::StandardButton result = QMessageBox::question(
+        this, tr("Confirm blockchain resync"), warning,
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+
+    if (result == QMessageBox::Yes)
+        buildParameterlist(RESYNC);
+}
+
+void RPCConsole::buildParameterlist(QString arg)
+{
+    QStringList args = QApplication::arguments();
+    args.removeFirst();
+
+    args.removeAll(SALVAGEWALLET);
+    args.removeAll(RESCAN);
+    args.removeAll(ZAPTXES1);
+    args.removeAll(ZAPTXES2);
+    args.removeAll(UPGRADEWALLET);
+    args.removeAll(REINDEX);
+    args.removeAll(RESYNC);
+    args.append(arg);
+
+    emit handleRestart(args);
 }
 
 void RPCConsole::on_closeButton_clicked()

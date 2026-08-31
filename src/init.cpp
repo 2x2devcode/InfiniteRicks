@@ -307,6 +307,10 @@ std::string HelpMessage()
         "  -keypool=<n>           " + _("Set key pool size to <n> (default: 100)") + "\n" +
         "  -rescan                " + _("Rescan the block chain for missing wallet transactions") + "\n" +
         "  -salvagewallet         " + _("Attempt to recover private keys from a corrupt wallet.dat") + "\n" +
+        "  -zapwallettxes=<mode>  " + _("Delete all wallet transactions and recover them through a rescan on startup") + "\n" +
+        "                         " + _("(1 = keep transaction metadata, 2 = discard transaction metadata)") + "\n" +
+        "  -reindex               " + _("Rebuild the blockchain index from current block files on startup") + "\n" +
+        "  -resync                " + _("Delete local blockchain data and synchronize from scratch on startup") + "\n" +
         "  -checkblocks=<n>       " + _("How many blocks to check at startup (default: 2500, 0 = all)") + "\n" +
         "  -checklevel=<n>        " + _("How thorough the block verification is (0-6, default: 1)") + "\n" +
         "  -loadblock=<file>      " + _("Imports blocks from external blk000?.dat file") + "\n" +
@@ -453,6 +457,9 @@ bool AppInit2()
         // Rewrite just private keys: rescan to find transactions
         SoftSetBoolArg("-rescan", true);
     }
+
+    if (GetBoolArg("-zapwallettxes", false))
+        SoftSetBoolArg("-rescan", true);
 
     // ********************************************************* Step 3: parameter-to-internal-flags
 
@@ -720,6 +727,33 @@ bool AppInit2()
         return InitError(msg);
     }
 
+    if (GetBoolArg("-resync", false))
+    {
+        uiInterface.InitMessage(_("Preparing for resync..."));
+        printf("-resync: removing local blockchain data\n");
+        boost::filesystem::path pathTxLevelDB = GetDataDir() / "txleveldb";
+        if (boost::filesystem::exists(pathTxLevelDB))
+            boost::filesystem::remove_all(pathTxLevelDB);
+        unsigned int nFile = 1;
+        while (true)
+        {
+            boost::filesystem::path pathBlockFile = GetDataDir() / strprintf("blk%04u.dat", nFile);
+            if (!boost::filesystem::exists(pathBlockFile))
+                break;
+            boost::filesystem::remove(pathBlockFile);
+            ++nFile;
+        }
+        SoftSetBoolArg("-rescan", true);
+    }
+    else if (GetBoolArg("-reindex", false))
+    {
+        uiInterface.InitMessage(_("Reindexing blockchain..."));
+        printf("-reindex: removing txleveldb\n");
+        boost::filesystem::path pathTxLevelDB = GetDataDir() / "txleveldb";
+        if (boost::filesystem::exists(pathTxLevelDB))
+            boost::filesystem::remove_all(pathTxLevelDB);
+    }
+
     if (GetBoolArg("-loadblockindextest"))
     {
         CTxDB txdb("r");
@@ -744,6 +778,22 @@ bool AppInit2()
         return false;
     }
     printf(" block index %15" PRId64 "ms\n", GetTimeMillis() - nStart);
+
+    if (GetBoolArg("-reindex", false) && !GetBoolArg("-resync", false))
+    {
+        uiInterface.InitMessage(_("Reindexing block files..."));
+        int nFile = 1;
+        while (true)
+        {
+            FILE* file = OpenBlockFile(nFile, 0, "rb");
+            if (!file)
+                break;
+            printf("Reindexing block file blk%04u.dat...\n", (unsigned int)nFile);
+            LoadExternalBlockFile(file);
+            ++nFile;
+        }
+        printf("Reindexing finished\n");
+    }
 
     if (GetBoolArg("-printblockindex") || GetBoolArg("-printblocktree"))
     {
@@ -814,6 +864,21 @@ bool AppInit2()
             strErrors << _("Error loading wallet.dat") << "\n";
     }
 
+    std::vector<CWalletTx> vWtx;
+    if (GetBoolArg("-zapwallettxes", false))
+    {
+        uiInterface.InitMessage(_("Zapping all transactions from wallet..."));
+        printf("Zapping all transactions from wallet...\n");
+        CWalletDB walletdb(strWalletFileName);
+        DBErrors nZapWalletRet = walletdb.ZapWalletTx(pwalletMain, vWtx);
+        if (nZapWalletRet != DB_LOAD_OK)
+        {
+            strErrors << _("Error loading wallet.dat: Wallet corrupted") << "\n";
+            printf("%s", strErrors.str().c_str());
+            return InitError(strErrors.str());
+        }
+    }
+
     if (GetBoolArg("-upgradewallet", fFirstRun))
     {
         int nMaxVersion = GetArg("-upgradewallet", 0);
@@ -865,6 +930,27 @@ bool AppInit2()
         nStart = GetTimeMillis();
         pwalletMain->ScanForWalletTransactions(pindexRescan, true);
         printf(" rescan      %15" PRId64 "ms\n", GetTimeMillis() - nStart);
+
+        if (GetBoolArg("-zapwallettxes", false) && GetArg("-zapwallettxes", "1") != "2")
+        {
+            CWalletDB walletdb(strWalletFileName);
+            BOOST_FOREACH(const CWalletTx& oldTx, vWtx)
+            {
+                std::map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.find(oldTx.GetHash());
+                if (it == pwalletMain->mapWallet.end())
+                    continue;
+
+                CWalletTx& newTx = it->second;
+                newTx.mapValue = oldTx.mapValue;
+                newTx.vOrderForm = oldTx.vOrderForm;
+                newTx.nTimeReceived = oldTx.nTimeReceived;
+                newTx.nTimeSmart = oldTx.nTimeSmart;
+                newTx.fFromMe = oldTx.fFromMe;
+                newTx.strFromAccount = oldTx.strFromAccount;
+                newTx.nOrderPos = oldTx.nOrderPos;
+                newTx.WriteToDisk();
+            }
+        }
     }
 
     // ********************************************************* Step 9: import blocks

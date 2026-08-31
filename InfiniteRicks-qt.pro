@@ -262,6 +262,8 @@ HEADERS += src/qt/bitcoingui.h \
     src/allocators.h \
     src/ui_interface.h \
     src/qt/rpcconsole.h \
+    src/qt/peertablemodel.h \
+    src/qt/bantablemodel.h \
     src/version.h \
     src/netbase.h \
     src/clientversion.h \
@@ -332,6 +334,8 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/notificator.cpp \
     src/qt/qtipcserver.cpp \
     src/qt/rpcconsole.cpp \
+    src/qt/peertablemodel.cpp \
+    src/qt/bantablemodel.cpp \
     src/noui.cpp \
     src/kernel.cpp \
     src/scrypt-arm.S \
