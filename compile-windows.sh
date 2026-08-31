@@ -233,7 +233,7 @@ setup_build_logging() {
 extract_build_errors() {
     [[ -f "$BUILD_LOG" ]] || return 0
     grep -E -i \
-        '(^|\s)(error:|fatal error:|undefined reference|collect2: error|ld: error|ninja: build stopped|make(\[[0-9]+\])?: \*\*\*|No rule to make target|FAILED:|CMake Error|Error [0-9]+|No such file or directory|cannot find|cannot create|Unknown platform|build_detect_platform|compiler not found|not found:|Directory nonexistent)' \
+        '(^|\s)(error:|fatal error:|undefined reference|collect2: error|ld: error|ninja: build stopped|make(\[[0-9]+\])?: \*\*\*|No rule to make target|FAILED:|CMake Error|Error [0-9]+|No such file or directory|cannot find|cannot create|Unknown platform|build_detect_platform|compiler not found|not found:|Directory nonexistent|double-prefix|Configure failed|OpenSSL .* failed)' \
         "$BUILD_LOG" | tail -n 100 > "$BUILD_LOG_ERRORS" 2>/dev/null || true
 }
 
@@ -334,23 +334,43 @@ build_openssl() {
     tar xzf "$tarball" -C "$SOURCES_DIR"
     mv "$SOURCES_DIR/openssl-${OPENSSL_VER}" "$build_dir"
 
-    log "Building OpenSSL ${OPENSSL_VER} for ${ARCH}"
+    log "Building OpenSSL ${OPENSSL_VER} for ${ARCH} (${OPENSSL_TARGET})"
     pushd "$build_dir" >/dev/null
-    # Configure applies --cross-compile-prefix; avoid exporting toolchain vars here.
-    env -u CC -u CXX -u AR -u RANLIB ./Configure "$OPENSSL_TARGET" \
+    # Configure wires CROSS_COMPILE into the Makefile. Do not pass CC/AR/RANLIB
+    # on the make command line — that double-prefixes the toolchain
+    # (e.g. x86_64-w64-mingw32-x86_64-w64-mingw32-gcc) and fails immediately.
+    env -u CC -u CXX -u AR -u RANLIB -u STRIP ./Configure "$OPENSSL_TARGET" \
         --cross-compile-prefix="${OPENSSL_CROSS_PREFIX}" \
         --prefix="$DEPS_DIR" \
         --libdir=lib \
-        no-shared no-tests no-module
-    run_make CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
-    make install_sw CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
+        --openssldir="$DEPS_DIR/ssl" \
+        no-shared no-tests no-module \
+        || die "OpenSSL Configure failed for ${OPENSSL_TARGET}"
+
+    make_flags
+    if ! env -u CC -u CXX -u AR -u RANLIB -u STRIP make "${MAKE_EXTRA_ARGS[@]}"; then
+        printf '\n--- OpenSSL make failure (last 60 lines) ---\n' >&2
+        tail -n 60 "$BUILD_LOG" >&2 || true
+        die "OpenSSL make failed — see $BUILD_LOG"
+    fi
+    if ! env -u CC -u CXX -u AR -u RANLIB -u STRIP make install_sw; then
+        printf '\n--- OpenSSL install_sw failure (last 40 lines) ---\n' >&2
+        tail -n 40 "$BUILD_LOG" >&2 || true
+        die "OpenSSL make install_sw failed — see $BUILD_LOG"
+    fi
     popd >/dev/null
+
+    if [[ -f "$DEPS_DIR/lib64/libssl.a" && ! -f "$DEPS_DIR/lib/libssl.a" ]]; then
+        mkdir -p "$DEPS_DIR/lib"
+        cp -a "$DEPS_DIR/lib64/"*.a "$DEPS_DIR/lib/" 2>/dev/null || true
+    fi
 
     [[ -f "$DEPS_DIR/lib/libssl.a" ]] || die "OpenSSL install did not produce libssl.a"
     [[ -f "$DEPS_DIR/lib/libcrypto.a" ]] || die "OpenSSL install did not produce libcrypto.a"
     grep -q "OpenSSL ${OPENSSL_VER}" "$DEPS_DIR/include/openssl/opensslv.h" ||
         die "OpenSSL headers do not report ${OPENSSL_VER}"
     touch "$marker"
+    log "OpenSSL ${OPENSSL_VER} installed into $DEPS_DIR"
 }
 
 verify_openssl() {
