@@ -6,7 +6,7 @@
 # Usage:
 #   ./compile-windows.sh              # build CLI + GUI
 #   ./compile-windows.sh --cli-only   # daemon only
-#   ./compile-windows.sh --gui-only   # wallet only (requires MXE)
+#   ./compile-windows.sh --gui-only   # wallet only (builds Schannel Qt if needed)
 #   ./compile-windows.sh --arch x86_64  # 64-bit Windows targets
 #   ./compile-windows.sh --deps-only    # build MinGW libraries only
 #
@@ -28,6 +28,8 @@ BUILD_DEPS=1
 BUILD_MXE_QT=1
 BUILD_VERBOSE=0
 JOBS="$(nproc 2>/dev/null || echo 2)"
+QT_VER="${QT_VER:-5.15.2}"
+ALLOW_MXE_QT="${ALLOW_MXE_QT:-0}"
 
 BUILD_LOG=""
 BUILD_LOG_ERRORS=""
@@ -40,6 +42,7 @@ MINIUPNPC_VERSION="2.2.6"
 ZLIB_VERSION="1.3.1"
 
 log()  { printf '\n==> %s\n' "$*"; }
+warn() { printf 'WARNING: %s\n' "$*" >&2; }
 die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "Missing command: $1"; }
 
@@ -52,7 +55,7 @@ Options:
   --gui-only       Build only InfiniteRicks-qt.exe
   --deps-only      Build/install MinGW dependency libraries and exit
   --skip-deps      Skip dependency build (use existing $MINGW_DEPS_DIR)
-  --skip-mxe       Do not build MXE/Qt (GUI build fails if Qt is missing)
+  --skip-mxe       Do not build legacy MXE Qt (only used with ALLOW_MXE_QT=1)
   --arch x86_64    64-bit Windows target (default)
   --arch i686      32-bit Windows target (not supported: code uses __int128)
   --jobs N         Parallel build jobs (default: nproc)
@@ -65,6 +68,12 @@ Environment variables:
   MXE_PATH         MXE installation directory (default: $MINGW_DEPS_DIR/mxe)
   MINGW_OUTPUT_DIR Output directory (default: ./windows-build)
   MINGW_BUILD_LOG  Same as --log-file (overridden by --log-file)
+  QT_VER            Qt source version (default: 5.15.2)
+  QT_USE_OPENSSL=1  Build QtNetwork with OpenSSL (default: Schannel, no OpenSSL)
+  ALLOW_MXE_QT=1    Restore the legacy MXE Qt build path (default: off)
+
+The default GUI path builds static Qt with Windows Schannel under
+$MINGW_DEPS_DIR/qt and links wallet crypto to OpenSSL 3.0.13 separately.
 EOF
 }
 
@@ -255,6 +264,14 @@ make_flags() {
 run_make() {
     make_flags
     make "${MAKE_EXTRA_ARGS[@]}" AR="$AR" RANLIB="$RANLIB" "$@"
+}
+
+run_mxe_make() {
+    make_flags
+    # MXE selects its own host and target tools. Inheriting the wallet's
+    # cross-tool variables can make MXE stages exit without a useful error.
+    env -u CC -u CXX -u AR -u RANLIB -u STRIP \
+        make "${MAKE_EXTRA_ARGS[@]}" "$@"
 }
 
 run_qt_release_make() {
@@ -525,6 +542,307 @@ build_mingw_dependencies() {
     log "MinGW dependencies are ready in $DEPS_DIR"
 }
 
+# Qt 5.15.2 needs explicit <limits> includes when built with GCC 11+.
+qtbase_has_limits_patch() {
+    local src="$1"
+    local header="$src/src/corelib/global/qfloat16.h"
+    [[ -f "$header" ]] &&
+        grep -qE '^[[:space:]]*#include[[:space:]]*<limits>' "$header"
+}
+
+ensure_qt_include_limits() {
+    local file="$1"
+    local after="${2:-}"
+    [[ -f "$file" ]] || return 0
+    if grep -qE '^[[:space:]]*#include[[:space:]]*<limits>' "$file"; then
+        return 0
+    fi
+
+    if [[ -n "$after" ]] && grep -qF "$after" "$file"; then
+        awk -v after="$after" '
+            !done && index($0, after) {
+                print
+                print "#include <limits>"
+                done=1
+                next
+            }
+            { print }
+        ' "$file" > "${file}.infinite-ricks.tmp"
+        mv "${file}.infinite-ricks.tmp" "$file"
+    elif grep -q '#include <QtCore/qmetatype.h>' "$file"; then
+        sed -i '/#include <QtCore\/qmetatype.h>/a #include <limits>' "$file"
+    elif grep -q '#include <QtCore/qglobal.h>' "$file"; then
+        sed -i '/#include <QtCore\/qglobal.h>/a #include <limits>' "$file"
+    elif grep -q '#include <array>' "$file"; then
+        sed -i '/#include <array>/a #include <limits>' "$file"
+    elif grep -q '#include <QtCore/qbytearray.h>' "$file"; then
+        sed -i '/#include <QtCore\/qbytearray.h>/a #include <limits>' "$file"
+    else
+        sed -i '0,/#include /s//#include <limits>\n&/' "$file"
+    fi
+
+    grep -qE '^[[:space:]]*#include[[:space:]]*<limits>' "$file" ||
+        die "Failed to add #include <limits> to $file"
+    log "Patched Qt header: $(basename "$file")"
+}
+
+patch_qtbase_for_gcc11() {
+    local src="$1"
+    local patch_file="$REPO_ROOT/patches/qtbase-5.15.2-gcc11-limits.diff"
+
+    if qtbase_has_limits_patch "$src"; then
+        log "Qt GCC 11+ <limits> patch already present in $src"
+        return 0
+    fi
+
+    log "Applying GCC 11+ Qt <limits> patch under $src"
+    if [[ -f "$patch_file" ]]; then
+        if (cd "$src" && patch -p1 --forward --batch < "$patch_file"); then
+            log "Applied $patch_file"
+        else
+            warn "Could not apply $patch_file cleanly; applying includes directly"
+        fi
+    else
+        die "Missing Qt compatibility patch: $patch_file"
+    fi
+
+    ensure_qt_include_limits \
+        "$src/src/corelib/global/qfloat16.h" \
+        '#include <QtCore/qmetatype.h>'
+    ensure_qt_include_limits \
+        "$src/src/corelib/global/qendian.h" \
+        '#include <QtCore/qglobal.h>'
+    ensure_qt_include_limits \
+        "$src/src/corelib/text/qbytearraymatcher.h" \
+        '#include <QtCore/qbytearray.h>'
+    ensure_qt_include_limits \
+        "$src/src/corelib/tools/qoffsetstringarray_p.h" \
+        '#include <array>'
+
+    qtbase_has_limits_patch "$src" ||
+        die "Qt qfloat16.h still lacks #include <limits> after patching"
+}
+
+build_qt_from_source() {
+    local qt_backend="schannel"
+    [[ "${QT_USE_OPENSSL:-0}" == "1" ]] && qt_backend="openssl"
+    local marker="$DEPS_DIR/.qt-${QT_VER}-${qt_backend}.ok"
+    if [[ -f "$marker" && -x "$DEPS_DIR/qt/bin/qmake" ]]; then
+        log "Qt ${QT_VER} (${qt_backend}) already built at $DEPS_DIR/qt"
+        return 0
+    fi
+
+    log "Building Qt ${QT_VER} (qtbase) for ${MINGW_PREFIX} with ${qt_backend}"
+    local qt_tarball="$SOURCES_DIR/qtbase-everywhere-src-${QT_VER}.tar.xz"
+    download_file \
+        "https://download.qt.io/archive/qt/5.15/${QT_VER}/submodules/qtbase-everywhere-src-${QT_VER}.tar.xz" \
+        "$qt_tarball"
+
+    local qt_src="$SOURCES_DIR/qtbase-everywhere-src-${QT_VER}"
+    local qt_build="$SOURCES_DIR/qt-${QT_VER}-${qt_backend}-build"
+    rm -rf "$qt_src" "$qt_build" "$DEPS_DIR/qt"
+    rm -f "$DEPS_DIR"/.qt-*.ok "$DEPS_DIR/.qt.ok"
+    tar xf "$qt_tarball" -C "$SOURCES_DIR"
+    patch_qtbase_for_gcc11 "$qt_src"
+    mkdir -p "$qt_build"
+
+    local qt_ssl_args=()
+    if [[ "$qt_backend" == "openssl" ]]; then
+        [[ -f "$DEPS_DIR/include/openssl/ssl.h" ]] ||
+            die "Qt OpenSSL mode requires headers under $DEPS_DIR/include"
+        [[ -f "$DEPS_DIR/lib/libssl.a" && -f "$DEPS_DIR/lib/libcrypto.a" ]] ||
+            die "Qt OpenSSL mode requires static libraries under $DEPS_DIR/lib"
+        qt_ssl_args=(
+            -openssl-linked
+            "OPENSSL_INCDIR=$DEPS_DIR/include"
+            "OPENSSL_LIBDIR=$DEPS_DIR/lib"
+            "OPENSSL_LIBS=-lssl -lcrypto -lcrypt32 -lws2_32 -lgdi32 -luser32 -ladvapi32"
+        )
+        log "Configuring QtNetwork with linked OpenSSL from $DEPS_DIR"
+    else
+        qt_ssl_args=(-schannel -no-openssl)
+        log "Configuring QtNetwork with Windows Schannel (-schannel -no-openssl)"
+    fi
+
+    local qt_log="$OUTPUT_DIR/qt-${QT_VER}-${qt_backend}.log"
+    ln -sf "$(basename "$qt_log")" "$OUTPUT_DIR/qt-latest.log"
+    : > "$qt_log"
+    log "Qt stage log: $qt_log"
+
+    pushd "$qt_build" >/dev/null
+    set +e
+    "$qt_src/configure" \
+        -prefix "$DEPS_DIR/qt" \
+        -release -static -opensource -confirm-license \
+        -xplatform win32-g++ \
+        -device-option "CROSS_COMPILE=${MINGW_PREFIX}-" \
+        -nomake examples -nomake tests \
+        -no-opengl -no-cups -no-pch -no-dbus -no-icu \
+        -no-feature-sql -no-feature-testlib \
+        -qt-zlib -qt-libpng -qt-libjpeg -qt-freetype -qt-pcre -qt-harfbuzz \
+        "${qt_ssl_args[@]}" \
+        -I "$DEPS_DIR/include" -L "$DEPS_DIR/lib" \
+        -verbose 2>&1 | tee -a "$qt_log"
+    local qt_rc=${PIPESTATUS[0]}
+    set -e
+    if [[ "$qt_rc" -ne 0 ]]; then
+        printf '%s\n' '--- last 80 lines of Qt configure log ---' >&2
+        tail -n 80 "$qt_log" >&2 || true
+        popd >/dev/null
+        die "Qt configure failed (exit $qt_rc); see $qt_log"
+    fi
+
+    if [[ "$qt_backend" == "openssl" && -f config.summary ]] &&
+       ! grep -E '[[:space:]]OpenSSL[[:space:].]+yes' config.summary >/dev/null; then
+        grep -E 'OpenSSL|Schannel' config.summary >&2 || true
+        popd >/dev/null
+        die "Qt did not detect OpenSSL; use the default QT_USE_OPENSSL=0 for Schannel"
+    fi
+
+    set +e
+    make -j"$JOBS" 2>&1 | tee -a "$qt_log"
+    qt_rc=${PIPESTATUS[0]}
+    set -e
+    if [[ "$qt_rc" -ne 0 ]]; then
+        printf '%s\n' '--- last 80 lines of Qt make log ---' >&2
+        tail -n 80 "$qt_log" >&2 || true
+        popd >/dev/null
+        die "Qt make failed (exit $qt_rc); see $qt_log"
+    fi
+
+    set +e
+    make install 2>&1 | tee -a "$qt_log"
+    qt_rc=${PIPESTATUS[0]}
+    set -e
+    popd >/dev/null
+    if [[ "$qt_rc" -ne 0 ]]; then
+        printf '%s\n' '--- last 80 lines of Qt install log ---' >&2
+        tail -n 80 "$qt_log" >&2 || true
+        die "Qt make install failed (exit $qt_rc); see $qt_log"
+    fi
+
+    [[ -x "$DEPS_DIR/qt/bin/qmake" ]] ||
+        die "Qt install did not produce $DEPS_DIR/qt/bin/qmake"
+    fix_mingw_schannel_lib_case
+    touch "$marker"
+}
+
+# MinGW ld on Linux is case-sensitive, while Qt's Schannel metadata can emit
+# -lSecur32/-lCrypt32 for lowercase MinGW import library filenames.
+fix_mingw_schannel_lib_case() {
+    local case_dir="$DEPS_DIR/lib/win32-case"
+    mkdir -p "$case_dir"
+
+    resolve_mingw_lib() {
+        local name="$1"
+        local path=""
+        path="$("${MINGW_PREFIX}-g++" -print-file-name="lib${name}.a" 2>/dev/null || true)"
+        if [[ -z "$path" || "$path" == "lib${name}.a" || ! -f "$path" ]]; then
+            local dir
+            for dir in \
+                "/usr/${MINGW_PREFIX}/lib" \
+                "/usr/lib/gcc/${MINGW_PREFIX}"/*/ \
+                "$MXE_DIR/usr/${MXE_TARGET}/lib"
+            do
+                if [[ -f "${dir}/lib${name}.a" ]]; then
+                    path="${dir}/lib${name}.a"
+                    break
+                fi
+            done
+        fi
+        [[ -n "$path" && -f "$path" ]] || return 1
+        printf '%s\n' "$path"
+    }
+
+    local lower upper src
+    for lower in secur32 crypt32 ncrypt bcrypt; do
+        case "$lower" in
+            secur32) upper=Secur32 ;;
+            crypt32) upper=Crypt32 ;;
+            ncrypt)  upper=Ncrypt ;;
+            bcrypt)  upper=Bcrypt ;;
+        esac
+        src="$(resolve_mingw_lib "$lower" || true)"
+        if [[ -z "$src" ]]; then
+            warn "MinGW lib${lower}.a not found; Schannel may fail to link -l${upper}"
+            continue
+        fi
+        ln -sfn "$src" "$case_dir/lib${upper}.a"
+        ln -sfn "$src" "$case_dir/lib${lower}.a"
+        ln -sfn "$src" "$DEPS_DIR/lib/lib${upper}.a"
+        log "win32-case: lib${upper}.a -> $src"
+    done
+
+    local metadata
+    shopt -s nullglob
+    for metadata in \
+        "$DEPS_DIR/qt/lib"/libQt5Network*.prl \
+        "$DEPS_DIR/qt/lib/pkgconfig"/Qt5Network*.pc \
+        "$DEPS_DIR/qt/mkspecs/modules"/qt_lib_network*.pri
+    do
+        [[ -f "$metadata" ]] || continue
+        if grep -qE -- '-l(Secur32|Crypt32|Ncrypt|Bcrypt)' "$metadata"; then
+            sed -i \
+                -e 's/-lSecur32/-lsecur32/g' \
+                -e 's/-lCrypt32/-lcrypt32/g' \
+                -e 's/-lNcrypt/-lncrypt/g' \
+                -e 's/-lBcrypt/-lbcrypt/g' \
+                "$metadata"
+            log "Normalized Schannel library case in $(basename "$metadata")"
+        fi
+    done
+    shopt -u nullglob
+}
+
+find_mingw_qmake() {
+    if [[ -n "${QT_MINGW_QMAKE:-}" && -x "$QT_MINGW_QMAKE" ]]; then
+        printf '%s\n' "$QT_MINGW_QMAKE"
+        return 0
+    fi
+
+    local candidate
+    for candidate in \
+        "$DEPS_DIR/qt/bin/qmake" \
+        "$MXE_DIR/usr/bin/${MXE_TARGET}-qmake-qt5" \
+        "$MXE_DIR/usr/${MXE_TARGET}/qt5/bin/qmake"
+    do
+        if [[ -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+ensure_schannel_qt() {
+    local qt_backend="schannel"
+    [[ "${QT_USE_OPENSSL:-0}" == "1" ]] && qt_backend="openssl"
+    local marker="$DEPS_DIR/.qt-${QT_VER}-${qt_backend}.ok"
+    if [[ -f "$marker" && -x "$DEPS_DIR/qt/bin/qmake" ]]; then
+        log "Using Qt ${QT_VER} (${qt_backend}) from $DEPS_DIR/qt/bin/qmake"
+        return 0
+    fi
+
+    if [[ "$qt_backend" == "schannel" ]]; then
+        log "Provisioning Schannel Qt so wallet crypto uses OpenSSL ${OPENSSL_VER}"
+    else
+        warn "QT_USE_OPENSSL=1 links OpenSSL into QtNetwork; Schannel is the default"
+    fi
+    build_qt_from_source
+}
+
+ensure_qt() {
+    [[ "$BUILD_GUI" -eq 1 ]] || return 0
+    if [[ "$ALLOW_MXE_QT" == "1" ]]; then
+        ensure_mxe
+        local mxe_qmake="$MXE_DIR/usr/bin/${MXE_TARGET}-qmake-qt5"
+        [[ -x "$mxe_qmake" ]] || die "Legacy MXE qmake is missing: $mxe_qmake"
+        log "ALLOW_MXE_QT=1: using legacy MXE Qt at $mxe_qmake"
+        return 0
+    fi
+    ensure_schannel_qt
+}
+
 build_leveldb() {
     local skip_if_built="${1:-0}"
     if [[ "$skip_if_built" -eq 1 && -f "$SRC_DIR/leveldb/libleveldb.a" && -f "$SRC_DIR/leveldb/libmemenv.a" ]]; then
@@ -649,9 +967,33 @@ ensure_mxe_host_ninja() {
     touch "$host_installed"
 }
 
+dump_mxe_failure() {
+    local stage="$1"
+    printf '\n%s\n' "--- last 80 lines of $BUILD_LOG ---" >&2
+    tail -n 80 "$BUILD_LOG" >&2 2>/dev/null || true
+
+    local candidates=()
+    local mxe_log=""
+    shopt -s nullglob globstar
+    candidates=(
+        "$MXE_DIR"/log/**/*"${stage}"*.log
+        "$MXE_DIR"/log/*"${stage}"*.log
+        "$MXE_DIR"/tmp-"${stage}"-*/**/*.log
+    )
+    shopt -u nullglob globstar
+    if ((${#candidates[@]} > 0)); then
+        mxe_log="$(ls -1t "${candidates[@]}" 2>/dev/null | head -n 1 || true)"
+    fi
+    if [[ -n "$mxe_log" ]]; then
+        printf '\n%s\n' "--- last 80 lines of MXE log $mxe_log ---" >&2
+        tail -n 80 "$mxe_log" >&2 2>/dev/null || true
+    else
+        printf 'No separate MXE %s log was found under %s.\n' "$stage" "$MXE_DIR" >&2
+    fi
+}
+
 ensure_mxe() {
   [[ "$BUILD_GUI" -eq 1 ]] || return 0
-  [[ "$BUILD_MXE_QT" -eq 1 ]] || return 0
 
   local qmake_bin="$MXE_DIR/usr/bin/${MXE_TARGET}-qmake-qt5"
   if [[ -x "$qmake_bin" ]]; then
@@ -659,7 +1001,8 @@ ensure_mxe() {
       return 0
   fi
 
-  [[ "$BUILD_MXE_QT" -eq 1 ]] || die "MXE Qt not found at $MXE_DIR (build qtbase or omit --skip-mxe)"
+  [[ "$BUILD_MXE_QT" -eq 1 ]] ||
+      die "Legacy MXE Qt not found at $MXE_DIR (remove --skip-mxe or unset ALLOW_MXE_QT)"
 
   log "MXE/Qt for MinGW not found; setting up MXE (this can take a long time)"
   if [[ ! -d "$MXE_DIR/.git" ]]; then
@@ -684,10 +1027,22 @@ EOF
       log "Building MXE host glib (one-time step before Qt)..."
       rm -rf "tmp-glib-x86_64-pc-linux-gnu"
       export PKG_CONFIG_PATH="$(host_pkg_config_path):${PKG_CONFIG_PATH:-}"
-      run_make glib MXE_TARGETS=x86_64-pc-linux-gnu || \
-          die "MXE host glib failed. Install libpcre2-dev and ensure github.com is reachable."
+      local mxe_rc=0
+      run_mxe_make glib MXE_TARGETS=x86_64-pc-linux-gnu || mxe_rc=$?
+      if [[ "$mxe_rc" -ne 0 ]]; then
+          dump_mxe_failure glib
+          popd >/dev/null
+          die "MXE host glib failed (exit $mxe_rc). Install libpcre2-dev and check the logs above."
+      fi
   fi
-  run_make qtbase MXE_TARGETS="${MXE_TARGET}"
+  log "Building legacy MXE qtbase for ${MXE_TARGET} without inherited AR/RANLIB"
+  local mxe_rc=0
+  run_mxe_make qtbase MXE_TARGETS="${MXE_TARGET}" || mxe_rc=$?
+  if [[ "$mxe_rc" -ne 0 ]]; then
+      dump_mxe_failure qtbase
+      popd >/dev/null
+      die "MXE qtbase failed (exit $mxe_rc). See the final 80 log lines above."
+  fi
   popd >/dev/null
 
   [[ -x "$qmake_bin" ]] || die "MXE qmake not found after build: $qmake_bin"
@@ -810,15 +1165,47 @@ ensure_qt_resources() {
 
 build_gui() {
     log "Building InfiniteRicks-qt.exe"
-    ensure_mxe
-    verify_mxe_toolchain
-    setup_mxe_toolchain_env
+    ensure_qt
     ensure_qt_resources
     verify_openssl
 
-    local qmake_bin="$MXE_DIR/usr/bin/${MXE_TARGET}-qmake-qt5"
-    local mxe_bin="$MXE_DIR/usr/bin"
-    local mxe_qt_bin="$MXE_DIR/usr/${MXE_TARGET}/qt5/bin"
+    local qmake_bin=""
+    local qt_runtime_bin=""
+    local qmake_path=""
+    local qmake_cc=""
+    local qmake_cxx=""
+    local qmake_rc=""
+    local qmake_ranlib=""
+
+    if [[ "$ALLOW_MXE_QT" == "1" ]]; then
+        verify_mxe_toolchain
+        setup_mxe_toolchain_env
+        local mxe_bin="$MXE_DIR/usr/bin"
+        qmake_bin="$mxe_bin/${MXE_TARGET}-qmake-qt5"
+        qt_runtime_bin="$MXE_DIR/usr/${MXE_TARGET}/qt5/bin"
+        qmake_path="$mxe_bin:$qt_runtime_bin:$PATH"
+        qmake_cc="$mxe_bin/${MXE_TARGET}-gcc"
+        qmake_cxx="$mxe_bin/${MXE_TARGET}-g++"
+        qmake_rc="$mxe_bin/${MXE_TARGET}-windres"
+        qmake_ranlib="$mxe_bin/${MXE_TARGET}-ranlib"
+        warn "ALLOW_MXE_QT=1: using legacy MXE Qt; QtNetwork may pull OpenSSL 1.1"
+    else
+        qmake_bin="$DEPS_DIR/qt/bin/qmake"
+        qt_runtime_bin="$DEPS_DIR/qt/bin"
+        qmake_path="$qt_runtime_bin:$PATH"
+        qmake_cc="${MINGW_PREFIX}-gcc"
+        qmake_cxx="${MINGW_PREFIX}-g++"
+        qmake_rc="${MINGW_PREFIX}-windres"
+        qmake_ranlib="${MINGW_PREFIX}-ranlib"
+        [[ -x "$qmake_bin" ]] ||
+            die "Schannel Qt qmake is missing: $qmake_bin"
+        verify_toolchain "GUI"
+    fi
+
+    log "GUI qmake: $qmake_bin"
+    log "GUI compiler: $qmake_cxx"
+    fix_mingw_schannel_lib_case
+
     local gui_obj_dir="build-mingw-${ARCH}"
     local legacy_gui_dir="$REPO_ROOT/build-win-qt-${ARCH}"
 
@@ -837,8 +1224,12 @@ build_gui() {
     local host_lrelease_bin
     host_lrelease_bin="$(host_lrelease)"
 
-    # qmake tests ${MXE_TARGET}-g++ before applying QMAKE_CXX; MXE usr/bin must be on PATH.
-    env PATH="$mxe_bin:$mxe_qt_bin:$PATH" \
+    local schannel_lib_args=()
+    if [[ -d "$DEPS_DIR/lib/win32-case" ]]; then
+        schannel_lib_args+=("LIBS+=-L$DEPS_DIR/lib/win32-case")
+    fi
+
+    env PATH="$qmake_path" \
         "$qmake_bin" \
         -spec win32-g++ \
         InfiniteRicks-qt.pro \
@@ -858,20 +1249,21 @@ build_gui() {
         OPENSSL_LIB_PATH="$DEPS_DIR/lib" \
         MINIUPNPC_INCLUDE_PATH="$DEPS_DIR/include/miniupnpc" \
         MINIUPNPC_LIB_PATH="$DEPS_DIR/lib" \
-        QMAKE_CC="$mxe_bin/${MXE_TARGET}-gcc" \
-        QMAKE_CXX="$mxe_bin/${MXE_TARGET}-g++" \
-        QMAKE_LINK="$mxe_bin/${MXE_TARGET}-g++" \
-        QMAKE_LINK_C="$mxe_bin/${MXE_TARGET}-gcc" \
-        QMAKE_RC="$mxe_bin/${MXE_TARGET}-windres" \
-        QMAKE_RANLIB="$mxe_bin/${MXE_TARGET}-ranlib" \
+        QMAKE_CC="$qmake_cc" \
+        QMAKE_CXX="$qmake_cxx" \
+        QMAKE_LINK="$qmake_cxx" \
+        QMAKE_LINK_C="$qmake_cc" \
+        QMAKE_RC="$qmake_rc" \
+        QMAKE_RANLIB="$qmake_ranlib" \
         QMAKE_LRELEASE="$host_lrelease_bin" \
         "QMAKE_CXXFLAGS+=-std=gnu++14 -include $REPO_ROOT/src/qt/mingw-preinclude.h" \
         "QMAKE_CXXFLAGS_RELEASE+=-std=gnu++14" \
         "QMAKE_CXXFLAGS_DEBUG+=-std=gnu++14" \
+        "${schannel_lib_args[@]}" \
         || die "qmake failed for InfiniteRicks-qt.pro"
 
     log "Compiling GUI (make -f Makefile.Release) — errors will be saved to $BUILD_LOG"
-    PATH="$mxe_bin:$mxe_qt_bin:$PATH" run_qt_release_make \
+    PATH="$qmake_path" run_qt_release_make \
         || die "GUI build failed — search the log for 'error:' or 'undefined reference'"
 
     local exe_path=""
@@ -897,11 +1289,11 @@ build_gui() {
     fi
 
     mkdir -p "$OUTPUT_DIR/qt-runtime"
-    if [[ -d "$mxe_qt_bin" ]]; then
-        cp -n "$mxe_qt_bin"/Qt5*.dll "$OUTPUT_DIR/qt-runtime/" 2>/dev/null || true
-        cp -n "$mxe_qt_bin"/libgcc_s_*.dll "$OUTPUT_DIR/qt-runtime/" 2>/dev/null || true
-        cp -n "$mxe_qt_bin"/libstdc++-6.dll "$OUTPUT_DIR/qt-runtime/" 2>/dev/null || true
-        cp -n "$mxe_qt_bin"/libwinpthread-1.dll "$OUTPUT_DIR/qt-runtime/" 2>/dev/null || true
+    if [[ -d "$qt_runtime_bin" ]]; then
+        cp -n "$qt_runtime_bin"/Qt5*.dll "$OUTPUT_DIR/qt-runtime/" 2>/dev/null || true
+        cp -n "$qt_runtime_bin"/libgcc_s_*.dll "$OUTPUT_DIR/qt-runtime/" 2>/dev/null || true
+        cp -n "$qt_runtime_bin"/libstdc++-6.dll "$OUTPUT_DIR/qt-runtime/" 2>/dev/null || true
+        cp -n "$qt_runtime_bin"/libwinpthread-1.dll "$OUTPUT_DIR/qt-runtime/" 2>/dev/null || true
     fi
 
     log "GUI binary: $OUTPUT_DIR/InfiniteRicks-qt.exe"
@@ -927,12 +1319,12 @@ main() {
     install_apt_packages
     setup_toolchain
 
-    if [[ "$BUILD_GUI" -eq 1 ]]; then
+    if [[ "$BUILD_GUI" -eq 1 && "$ALLOW_MXE_QT" == "1" ]]; then
         ensure_mxe
         setup_mxe_toolchain_env
         use_mxe_compiler_for_deps
         verify_mxe_toolchain
-        log "GUI build uses MXE toolchain; dependencies in $DEPS_DIR"
+        log "ALLOW_MXE_QT=1: dependencies use the legacy MXE toolchain in $DEPS_DIR"
     fi
 
     build_mingw_dependencies
@@ -942,6 +1334,7 @@ main() {
         exit 0
     fi
 
+    [[ "$BUILD_GUI" -eq 1 ]] && ensure_qt
     [[ "$BUILD_CLI" -eq 1 ]] && build_cli
     [[ "$BUILD_GUI" -eq 1 ]] && build_gui
     print_summary
