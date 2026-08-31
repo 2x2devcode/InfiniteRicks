@@ -2,6 +2,7 @@
 #define BITCOINGUI_H
 
 #include <QMainWindow>
+#include <QStringList>
 #include <QSystemTrayIcon>
 
 #include <stdint.h>
@@ -49,6 +50,9 @@ public:
         functionality.
     */
     void setWalletModel(WalletModel *walletModel);
+
+    bool isRestartRequested() const { return !restartArgs.isEmpty(); }
+    QStringList getRestartArgs() const { return restartArgs; }
 
 protected:
     void changeEvent(QEvent *e);
@@ -106,6 +110,7 @@ private:
     AndroidBottomNav *androidBottomNav;
 
     uint64_t nWeight;
+    QStringList restartArgs;
 
     /** Create the main UI actions. */
     void createActions();
@@ -139,6 +144,7 @@ public slots:
     */
     void askFee(qint64 nFeeRequired, bool *payFee);
     void handleURI(QString strURI);
+    void handleRestart(QStringList args);
 
 private slots:
     /** Switch to overview (home) page */

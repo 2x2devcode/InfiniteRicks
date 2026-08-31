@@ -33,7 +33,7 @@ BUILD_LOG=""
 BUILD_LOG_ERRORS=""
 BUILD_LOG_TEE_PID=""
 
-OPENSSL_VERSION="1.1.1w"
+OPENSSL_VER="3.0.13"
 BDB_VERSION="5.3.28.NC"
 BOOST_VERSION="1.83.0"
 MINIUPNPC_VERSION="2.2.6"
@@ -294,26 +294,56 @@ download_file() {
 }
 
 build_openssl() {
-    [[ -f "$DEPS_DIR/lib/libssl.a" && -f "$DEPS_DIR/lib/libcrypto.a" ]] && return 0
+    local marker="$DEPS_DIR/.openssl-${OPENSSL_VER}.ok"
+    if [[ -f "$marker" && -f "$DEPS_DIR/lib/libssl.a" &&
+          -f "$DEPS_DIR/lib/libcrypto.a" &&
+          -f "$DEPS_DIR/include/openssl/opensslv.h" ]] &&
+       grep -q "OpenSSL ${OPENSSL_VER}" "$DEPS_DIR/include/openssl/opensslv.h"; then
+        log "OpenSSL ${OPENSSL_VER} already built"
+        return 0
+    fi
 
-    local tarball="$SOURCES_DIR/openssl-${OPENSSL_VERSION}.tar.gz"
-    download_file "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" "$tarball"
+    rm -f "$DEPS_DIR"/.openssl-*.ok
+    rm -f "$DEPS_DIR/lib/libssl.a" "$DEPS_DIR/lib/libcrypto.a"
+    rm -f "$DEPS_DIR/lib64/libssl.a" "$DEPS_DIR/lib64/libcrypto.a"
 
-    local build_dir="$SOURCES_DIR/openssl-${OPENSSL_VERSION}-build"
+    local tarball="$SOURCES_DIR/openssl-${OPENSSL_VER}.tar.gz"
+    if ! download_file "https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz" "$tarball"; then
+        download_file "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VER}/openssl-${OPENSSL_VER}.tar.gz" "$tarball"
+    fi
+
+    local build_dir="$SOURCES_DIR/openssl-${OPENSSL_VER}-build"
     rm -rf "$build_dir"
     tar xzf "$tarball" -C "$SOURCES_DIR"
-    mv "$SOURCES_DIR/openssl-${OPENSSL_VERSION}" "$build_dir"
+    mv "$SOURCES_DIR/openssl-${OPENSSL_VER}" "$build_dir"
 
-    log "Building OpenSSL ${OPENSSL_VERSION} for ${ARCH}"
+    log "Building OpenSSL ${OPENSSL_VER} for ${ARCH}"
     pushd "$build_dir" >/dev/null
     # Configure applies --cross-compile-prefix; avoid exporting toolchain vars here.
     env -u CC -u CXX -u AR -u RANLIB ./Configure "$OPENSSL_TARGET" \
         --cross-compile-prefix="${OPENSSL_CROSS_PREFIX}" \
         --prefix="$DEPS_DIR" \
-        no-shared no-tests
+        --libdir=lib \
+        no-shared no-tests no-module
     run_make CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
     make install_sw CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
     popd >/dev/null
+
+    [[ -f "$DEPS_DIR/lib/libssl.a" ]] || die "OpenSSL install did not produce libssl.a"
+    [[ -f "$DEPS_DIR/lib/libcrypto.a" ]] || die "OpenSSL install did not produce libcrypto.a"
+    grep -q "OpenSSL ${OPENSSL_VER}" "$DEPS_DIR/include/openssl/opensslv.h" ||
+        die "OpenSSL headers do not report ${OPENSSL_VER}"
+    touch "$marker"
+}
+
+verify_openssl() {
+    [[ -f "$DEPS_DIR/include/openssl/opensslv.h" ]] ||
+        die "OpenSSL headers are missing from $DEPS_DIR"
+    [[ -f "$DEPS_DIR/lib/libssl.a" && -f "$DEPS_DIR/lib/libcrypto.a" ]] ||
+        die "OpenSSL static libraries are missing from $DEPS_DIR"
+    grep -q "OpenSSL ${OPENSSL_VER}" "$DEPS_DIR/include/openssl/opensslv.h" ||
+        die "OpenSSL in $DEPS_DIR is not ${OPENSSL_VER}; rebuild without --skip-deps"
+    log "Using OpenSSL ${OPENSSL_VER} from $DEPS_DIR"
 }
 
 mingw_header_compat_dir() {
@@ -540,6 +570,7 @@ copy_cli_runtime_dlls() {
 build_cli() {
     log "Building InfiniteRicksd.exe"
     verify_toolchain "CLI"
+    verify_openssl
     build_leveldb
     pushd "$SRC_DIR" >/dev/null
     mkdir -p obj obj/zerocoin
@@ -783,6 +814,7 @@ build_gui() {
     verify_mxe_toolchain
     setup_mxe_toolchain_env
     ensure_qt_resources
+    verify_openssl
 
     local qmake_bin="$MXE_DIR/usr/bin/${MXE_TARGET}-qmake-qt5"
     local mxe_bin="$MXE_DIR/usr/bin"
@@ -853,6 +885,16 @@ build_gui() {
 
     cp "$exe_path" "$OUTPUT_DIR/InfiniteRicks-qt.exe"
     popd >/dev/null
+
+    if command -v strings >/dev/null 2>&1; then
+        if strings "$OUTPUT_DIR/InfiniteRicks-qt.exe" | grep -q "OpenSSL ${OPENSSL_VER}"; then
+            log "Verified InfiniteRicks-qt.exe embeds OpenSSL ${OPENSSL_VER}"
+        elif strings "$OUTPUT_DIR/InfiniteRicks-qt.exe" | grep -qE 'OpenSSL 1\.1\.'; then
+            die "InfiniteRicks-qt.exe still embeds OpenSSL 1.1.x instead of ${OPENSSL_VER}"
+        else
+            die "InfiniteRicks-qt.exe does not embed the expected OpenSSL ${OPENSSL_VER} version string"
+        fi
+    fi
 
     mkdir -p "$OUTPUT_DIR/qt-runtime"
     if [[ -d "$mxe_qt_bin" ]]; then

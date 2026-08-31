@@ -23,6 +23,7 @@
 #include <QLibraryInfo>
 #include <QFile>
 #include <QFont>
+#include <QProcess>
 #include <QSettings>
 
 #if defined(BITCOIN_NEED_QT_PLUGINS) && !defined(_BITCOIN_QT_PLUGINS_INCLUDED)
@@ -367,8 +368,14 @@ int main(int argc, char *argv[])
                 window.setWalletModel(0);
                 guiref = 0;
             }
+            const bool restart = window.isRestartRequested();
+            const QStringList restartArgs = window.getRestartArgs();
+
             // Shutdown the core and its threads, but don't exit Bitcoin-Qt here
             Shutdown(NULL);
+
+            if (restart)
+                QProcess::startDetached(QApplication::applicationFilePath(), restartArgs);
         }
         else
         {
