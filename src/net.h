@@ -37,6 +37,7 @@ void AddressCurrentlyConnected(const CService& addr);
 CNode* FindNode(const CNetAddr& ip);
 CNode* FindNode(const CService& ip);
 CNode* ConnectNode(CAddress addrConnect, const char *strDest = NULL);
+bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOutbound = NULL, const char *strDest = NULL, bool fOneShot = false);
 void MapPort();
 unsigned short GetListenPort();
 bool BindListenPort(const CService &bindAddr, std::string& strError=REF(std::string()));
@@ -122,6 +123,8 @@ extern CAddrMan addrman;
 
 extern std::vector<CNode*> vNodes;
 extern CCriticalSection cs_vNodes;
+extern std::vector<std::string> vAddedNodes;
+extern CCriticalSection cs_vAddedNodes;
 extern std::map<CInv, CDataStream> mapRelay;
 extern std::deque<std::pair<int64_t, CInv> > vRelayExpiration;
 extern CCriticalSection cs_mapRelay;
@@ -133,6 +136,9 @@ extern std::map<CInv, int64_t> mapAlreadyAskedFor;
 class CNodeStats
 {
 public:
+    CNodeStats() : nodeid(0), dPingTime(-1.0) {}
+
+    int nodeid;
     uint64_t nServices;
     int64_t nLastSend;
     int64_t nLastRecv;
@@ -143,6 +149,7 @@ public:
     bool fInbound;
     int nStartingHeight;
     int nMisbehavior;
+    double dPingTime;
 };
 
 
@@ -230,6 +237,12 @@ protected:
     int nMisbehavior;
 
 public:
+    int id;
+    uint64_t nPingNonceSent;
+    int64_t nPingUsecStart;
+    int64_t nPingUsecTime;
+    bool fPingQueued;
+
     std::map<uint256, CRequestTracker> mapRequests;
     CCriticalSection cs_mapRequests;
     uint256 hashContinue;
@@ -280,6 +293,12 @@ public:
         nMisbehavior = 0;
         hashCheckpointKnown = 0;
         setInventoryKnown.max_size(SendBufferSize() / 1000);
+        static int nLastNodeId = 0;
+        id = ++nLastNodeId;
+        nPingNonceSent = 0;
+        nPingUsecStart = 0;
+        nPingUsecTime = -1;
+        fPingQueued = false;
 
         // Be shy and don't send version until we hear
         if (hSocket != INVALID_SOCKET && !fInbound)
@@ -681,9 +700,16 @@ public:
     // new code.
     static void ClearBanned(); // needed for unit testing
     static bool IsBanned(CNetAddr ip);
+    static void GetBanned(std::map<CNetAddr, int64_t>& banMap);
+    static void SetBanned(const CNetAddr& addr, int64_t banUntil);
+    static bool RemoveBanned(const CNetAddr& addr);
     bool Misbehaving(int howmuch); // 1 == a little, 100 == a lot
     void copyStats(CNodeStats &stats);
 };
+
+bool DisconnectNode(int nodeid);
+void Ban(const CNetAddr& addr, int64_t banTimeSeconds);
+bool Unban(const CNetAddr& addr);
 
 inline void RelayInventory(const CInv& inv)
 {
