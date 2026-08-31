@@ -7,21 +7,25 @@
 TARGET_PLATFORM?=x86_64
 #TARGET_PLATFORM:=i686
 
-DEPSDIR?=$(HOME)/.infinite-ricks/mingw-deps
+DEPSDIR?=$(abspath $(CURDIR)/../depends/$(TARGET_PLATFORM)-w64-mingw32)
 
 CC?=$(TARGET_PLATFORM)-w64-mingw32-gcc
 CXX?=$(TARGET_PLATFORM)-w64-mingw32-g++
 RANLIB?=$(TARGET_PLATFORM)-w64-mingw32-ranlib
 STRIP?=$(TARGET_PLATFORM)-w64-mingw32-strip
+AR?=$(TARGET_PLATFORM)-w64-mingw32-ar
 
 USE_UPNP:=0
+# Boost layout=tagged may produce libboost_thread_win32*.a — set by compile-windows.sh
+BOOST_THREAD_LIB?=boost_thread
 BOOST_LIB_SUFFIX?=
 
 INCLUDEPATHS= \
  -I"$(CURDIR)" \
  -I"$(CURDIR)"/obj \
  -I"$(DEPSDIR)/include" \
- -I"$(DEPSDIR)/include/miniupnpc"
+ -I"$(DEPSDIR)/include/miniupnpc" \
+ -I"$(DEPSDIR)"
 
 LIBPATHS= \
  -L"$(DEPSDIR)/lib"
@@ -30,7 +34,7 @@ LIBS= \
  -lboost_system$(BOOST_LIB_SUFFIX) \
  -lboost_filesystem$(BOOST_LIB_SUFFIX) \
  -lboost_program_options$(BOOST_LIB_SUFFIX) \
- -lboost_thread$(BOOST_LIB_SUFFIX) \
+ -l$(BOOST_THREAD_LIB)$(BOOST_LIB_SUFFIX) \
  -lboost_chrono$(BOOST_LIB_SUFFIX) \
  -ldb_cxx \
  -lssl \
@@ -38,10 +42,10 @@ LIBS= \
  -lcrypt32 \
  -lz
 
-DEFS=-D_MT -DWIN32 -D_WINDOWS -DBOOST_THREAD_USE_LIB -DBOOST_SPIRIT_THREADSAFE -Wno-deprecated-declarations
+DEFS=-D_MT -DWIN32 -D_WINDOWS -DBOOST_THREAD_USE_LIB -DBOOST_SPIRIT_THREADSAFE -DBOOST_BIND_GLOBAL_PLACEHOLDERS -D__USE_MINGW_ANSI_STDIO=1 -Wno-deprecated-declarations
 DEBUGFLAGS=-g
-CFLAGS=-O2 -msse2 -Wall -Wextra -Wno-ignored-qualifiers -Wformat -Wformat-security -Wno-unused-parameter $(DEBUGFLAGS) $(DEFS) $(INCLUDEPATHS)
-LDFLAGS=-Wl,--dynamicbase -Wl,--nxcompat -static-libgcc -static-libstdc++
+CFLAGS=-O2 -std=c++17 -msse2 -Wall -Wextra -Wno-ignored-qualifiers -Wformat -Wformat-security -Wno-unused-parameter -Wno-deprecated-copy $(DEBUGFLAGS) $(DEFS) $(INCLUDEPATHS)
+LDFLAGS=-Wl,--dynamicbase -Wl,--nxcompat -static -static-libgcc -static-libstdc++
 
 ifndef USE_UPNP
 	override USE_UPNP = -
@@ -107,7 +111,7 @@ TOOL_LIBS= \
  -lboost_system$(BOOST_LIB_SUFFIX) \
  -lboost_filesystem$(BOOST_LIB_SUFFIX) \
  -lboost_program_options$(BOOST_LIB_SUFFIX) \
- -lboost_thread$(BOOST_LIB_SUFFIX) \
+ -l$(BOOST_THREAD_LIB)$(BOOST_LIB_SUFFIX) \
  -lboost_chrono$(BOOST_LIB_SUFFIX) \
  -lssl \
  -lcrypto \
