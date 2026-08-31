@@ -86,8 +86,8 @@ Value addnode(const Array& params, bool fHelp)
             "1. \"node\"     (string, required) The node (see getpeerinfo for nodes)\n"
             "2. \"command\"  (string, required) \"add\", \"remove\", or \"onetry\"\n"
             "\nExamples:\n"
-            "> InfiniteRicks-cli addnode \"192.168.0.6:31648\" \"onetry\"\n"
-            "> curl --user myusername --data-binary '{\"jsonrpc\":\"1.0\",\"id\":\"curltest\",\"method\":\"addnode\",\"params\":[\"192.168.0.6:31648\",\"onetry\"]}' -H 'content-type: text/plain;' http://127.0.0.1:31648/\n");
+            "> InfiniteRicks-cli addnode \"192.168.0.6:31647\" \"onetry\"\n"
+            "> curl --user myusername --data-binary '{\"jsonrpc\":\"1.0\",\"id\":\"curltest\",\"method\":\"addnode\",\"params\":[\"192.168.0.6:31647\",\"onetry\"]}' -H 'content-type: text/plain;' http://127.0.0.1:31648/\n");
 
     string strNode = params[0].get_str();
 
