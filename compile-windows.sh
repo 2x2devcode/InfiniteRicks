@@ -644,7 +644,7 @@ ensure_mxe_host_ninja() {
     [[ -f "$host_installed" ]] && return 0
     command -v ninja >/dev/null 2>&1 || return 0
     log "Using system ninja for MXE host tools"
-    mkdir -p "$host_bin"
+    mkdir -p "$host_bin" "$(dirname "$host_installed")"
     ln -sf "$(command -v ninja)" "$host_bin/ninja"
     touch "$host_installed"
 }
