@@ -175,12 +175,6 @@ download() {
     else
         wget -O "$out" "$url"
     fi
-}
-
-verify_file() {
-    local f="$1" msg="$2"
-    [[ -e "$f" ]] || die "$msg (missing: $f)"
-}
 
 # Fail if a Windows PE still imports MinGW runtime DLLs (won't run without them).
 verify_no_mingw_runtime_dlls() {
@@ -295,7 +289,9 @@ build_openssl() {
         grep -E 'OPENSSL_VERSION|SHLIB_VERSION' "$DEPS/include/openssl/opensslv.h" | head -20 || true
         die "OpenSSL build does not look like ${OPENSSL_VER}"
     fi
+
     touch "$marker"
+    log "OpenSSL ${OPENSSL_VER} installed into $DEPS_DIR"
 }
 
 verify_openssl_deps() {
