@@ -159,7 +159,37 @@ setup_mingw_posix() {
     fi
     need_cmd "${TARGET}-g++" || die "Missing ${TARGET}-g++ (install mingw-w64)"
     need_cmd "${TARGET}-gcc" || die "Missing ${TARGET}-gcc"
-    log "Using $($TARGET-g++ --version | head -1)"
+    log "Using $(${TARGET}-g++ --version | head -1)"
+}
+
+# -print-file-name=windows.h often returns the bare name "windows.h" on Ubuntu
+# mingw-w64 even when headers are installed; fall back to known paths and a
+# preprocessor smoke test (same check Qt/Schannel already relies on).
+verify_mingw_headers() {
+    local win_h candidate
+
+    win_h="$("${TARGET}-g++" -print-file-name=windows.h 2>/dev/null || true)"
+    if [[ -n "$win_h" && "$win_h" != "windows.h" && -f "$win_h" ]]; then
+        log "windows.h: $win_h"
+        return 0
+    fi
+
+    for candidate in \
+        "/usr/${TARGET}/include/windows.h" \
+        "/usr/share/mingw-w64/include/windows.h"
+    do
+        if [[ -f "$candidate" ]]; then
+            log "windows.h: $candidate"
+            return 0
+        fi
+    done
+
+    if echo '#include <windows.h>' | "${TARGET}-g++" -xc++ -E - -o /dev/null 2>/dev/null; then
+        log "windows.h: OK (${TARGET}-g++ can preprocess <windows.h>)"
+        return 0
+    fi
+
+    die "MinGW Windows headers not found for ${TARGET}-g++ — install g++-mingw-w64-x86-64 and mingw-w64-x86-64-dev"
 }
 
 download() {
@@ -219,6 +249,7 @@ install_host_packages() {
         mingw-w64
         "g++-mingw-w64-${mingw_pkg_arch}"
         "gcc-mingw-w64-${mingw_pkg_arch}"
+        "mingw-w64-${mingw_pkg_arch}-dev"
         # GUI / Qt cross-build host tools
         # qttools5-dev-tools provides host lrelease (needed for .ts -> .qm under MXE)
         gperf bison flex
@@ -858,14 +889,8 @@ ensure_qt() {
 
 build_cli() {
     log "Building Windows CLI (InfiniteRicksd.exe)"
-    need_cmd "${TARGET}-g++" || die "Missing ${TARGET}-g++ (install mingw-w64)"
-    local win_h
-    win_h="$("${TARGET}-g++" -print-file-name=windows.h 2>/dev/null || true)"
-    if [[ -z "$win_h" || "$win_h" == "windows.h" || ! -f "$win_h" ]]; then
-        die "MinGW sysroot missing windows.h for ${TARGET}-g++ (install g++-mingw-w64)"
-    fi
+    verify_mingw_headers
     log "Cross C++: $(${TARGET}-g++ --version | head -1)"
-    log "windows.h: $win_h"
 
     local stage_log="$LOG_DIR/cli-${BUILD_STAMP}.log"
     ln -sfn "$(basename "$stage_log")" "$LOG_DIR/cli-latest.log"
