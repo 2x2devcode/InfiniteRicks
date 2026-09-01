@@ -155,7 +155,9 @@ DEFS += -I"$(CURDIR)/leveldb/include"
 DEFS += -I"$(CURDIR)/leveldb/helpers"
 OBJS += obj/txdb-leveldb.o
 leveldb/libleveldb.a:
-	@echo "Building LevelDB ..." && cd leveldb && CC=$(CC) CXX=$(CXX) TARGET_OS=OS_WINDOWS_CROSSCOMPILE $(MAKE) libleveldb.a libmemenv.a && $(RANLIB) libleveldb.a && $(RANLIB) libmemenv.a && cd ..
+	@echo "Building LevelDB ..." && cd leveldb && CC=$(CC) CXX=$(CXX) TARGET_OS=OS_WINDOWS_CROSSCOMPILE \
+	  LDFLAGS="$(LIBPATHS)" $(MAKE) libleveldb.a libmemenv.a && \
+	  $(RANLIB) libleveldb.a && $(RANLIB) libmemenv.a && cd ..
 obj/txdb-leveldb.o: leveldb/libleveldb.a
 
 obj/build.h: FORCE
@@ -171,7 +173,9 @@ obj/zerocoin/%.o: zerocoin/%.cpp $(HEADERS)
 	$(CXX) -c $(CFLAGS) -o $@ $<
 
 InfiniteRicksd.exe: $(OBJS:obj/%=obj/%)
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS) $(MINGW_STATIC_RUNTIME)
+	# leveldb.a is appended at the end of LIBS; repeat shell32/shlwapi after it
+	# so PathFileExistsW and other env_win.cc symbols resolve (GNU ld order).
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS) -lshell32 -lshlwapi $(MINGW_STATIC_RUNTIME)
 	$(STRIP) InfiniteRicksd.exe
 
 InfiniteRicks-cli.exe: $(CLI_OBJS)
