@@ -858,6 +858,15 @@ ensure_qt() {
 
 build_cli() {
     log "Building Windows CLI (InfiniteRicksd.exe)"
+    need_cmd "${TARGET}-g++" || die "Missing ${TARGET}-g++ (install mingw-w64)"
+    local win_h
+    win_h="$("${TARGET}-g++" -print-file-name=windows.h 2>/dev/null || true)"
+    if [[ -z "$win_h" || "$win_h" == "windows.h" || ! -f "$win_h" ]]; then
+        die "MinGW sysroot missing windows.h for ${TARGET}-g++ (install g++-mingw-w64)"
+    fi
+    log "Cross C++: $(${TARGET}-g++ --version | head -1)"
+    log "windows.h: $win_h"
+
     local stage_log="$LOG_DIR/cli-${BUILD_STAMP}.log"
     ln -sfn "$(basename "$stage_log")" "$LOG_DIR/cli-latest.log"
     log "CLI stage log: $stage_log"
@@ -869,6 +878,11 @@ build_cli() {
         rm -f leveldb/libleveldb.a leveldb/libmemenv.a
         make -C leveldb clean || true
         make -f makefile.linux-mingw -j"$JOBS" \
+            CC="${TARGET}-gcc" \
+            CXX="${TARGET}-g++" \
+            AR="${TARGET}-ar" \
+            RANLIB="${TARGET}-ranlib" \
+            STRIP="${TARGET}-strip" \
             TARGET_PLATFORM="$TARGET_ARCH" \
             DEPSDIR="$DEPS" \
             BOOST_LIB_SUFFIX="$BOOST_LIB_SUFFIX" \
