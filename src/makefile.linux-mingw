@@ -48,6 +48,10 @@ DEBUGFLAGS=-g
 CFLAGS=-O2 -std=c++17 -msse2 -Wall -Wextra -Wno-ignored-qualifiers -Wformat -Wformat-security -Wno-unused-parameter -Wno-deprecated-copy $(DEBUGFLAGS) $(DEFS) $(INCLUDEPATHS)
 LDFLAGS=-Wl,--dynamicbase -Wl,--nxcompat -static -static-libgcc -static-libstdc++
 
+# Link libstdc++/winpthread statically at the end (after all .a libs). Without this,
+# GCC 10+ mingw-w64 may still emit a libstdc++-6.dll import despite -static-libstdc++.
+MINGW_STATIC_RUNTIME = -Wl,-Bstatic -lstdc++ -lwinpthread -lpthread
+
 ifndef USE_UPNP
 	override USE_UPNP = -
 endif
@@ -167,15 +171,15 @@ obj/zerocoin/%.o: zerocoin/%.cpp $(HEADERS)
 	$(CXX) -c $(CFLAGS) -o $@ $<
 
 InfiniteRicksd.exe: $(OBJS:obj/%=obj/%)
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS) -lshlwapi -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS) $(MINGW_STATIC_RUNTIME)
 	$(STRIP) InfiniteRicksd.exe
 
 InfiniteRicks-cli.exe: $(CLI_OBJS)
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS) -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS) $(MINGW_STATIC_RUNTIME)
 	$(STRIP) InfiniteRicks-cli.exe
 
 InfiniteRicks-tx.exe: $(TX_OBJS)
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS) -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(TOOL_LIBS) $(MINGW_STATIC_RUNTIME)
 	$(STRIP) InfiniteRicks-tx.exe
 
 obj/scrypt-x86.o: scrypt-x86.S
