@@ -367,7 +367,7 @@ def main():
         if sz in (16, 32, 48, 256):
             app_images.append(img.resize((sz, sz), Image.LANCZOS))
 
-    ico_path = os.path.join(ICON_DIR, "infinitericks.ico")
+    ico_path = os.path.join(ICON_DIR, "infinitericksico.ico")
     base = draw_app_icon(256)
     base.save(
         ico_path,
