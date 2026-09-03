@@ -350,6 +350,13 @@ def main():
     for name, fn in ui_icons.items():
         save_icon(os.path.join(ICON_DIR, name), render(fn, 48))
 
+    # App / window / tray brand mark: Rick portal logo (splash.png), not the
+    # procedural draw_app_icon() glyph which is only kept for reference.
+    brand_source = os.path.join(REPO, "src", "qt", "res", "images", "splash.png")
+    if not os.path.isfile(brand_source):
+        raise SystemExit(f"Missing brand logo source: {brand_source}")
+    brand = Image.open(brand_source).convert("RGBA")
+
     app_sizes = {
         "infinitericks-16.png": 16,
         "infinitericks-32.png": 32,
@@ -360,19 +367,17 @@ def main():
         "infinitericks_testnet.png": 256,
         "bitcoin_testnet.png": 256,
     }
-    app_images = []
     for name, sz in app_sizes.items():
-        img = draw_app_icon(sz)
-        save_icon(os.path.join(ICON_DIR, name), img)
-        if sz in (16, 32, 48, 256):
-            app_images.append(img.resize((sz, sz), Image.LANCZOS))
+        save_icon(
+            os.path.join(ICON_DIR, name),
+            brand.resize((sz, sz), Image.LANCZOS),
+        )
 
     ico_path = os.path.join(ICON_DIR, "infinitericks.ico")
-    base = draw_app_icon(256)
-    base.save(
+    brand.save(
         ico_path,
         format="ICO",
-        sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+        sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
     )
 
     android_sizes = {
