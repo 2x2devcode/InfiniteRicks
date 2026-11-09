@@ -677,6 +677,30 @@ bool AutoBackupWallet(const CWallet& wallet, bool fFlushFirst)
         return false;
     }
 
+    // Limit automatic backups to one file per UTC calendar day.
+    // Match any existing backup whose name starts with "wallet.dat.YYYY-MM-DD".
+    const std::string strDate = DateTimeStrFormat("%Y-%m-%d", GetTime());
+    const std::string strDayPrefix = wallet.strWalletFile + "." + strDate;
+    try {
+        for (boost::filesystem::directory_iterator it(pathBackups);
+             it != boost::filesystem::directory_iterator(); ++it)
+        {
+            if (!boost::filesystem::is_regular_file(it->status()))
+                continue;
+            const std::string strName = it->path().filename().string();
+            if (strName.compare(0, strDayPrefix.size(), strDayPrefix) == 0)
+            {
+                printf("AutoBackupWallet: backup for %s already exists (%s), skipping\n",
+                       strDate.c_str(), strName.c_str());
+                return true;
+            }
+        }
+    } catch (const boost::filesystem::filesystem_error& e) {
+        printf("AutoBackupWallet: failed to scan backups directory %s - %s\n",
+               pathBackups.string().c_str(), e.what());
+        return false;
+    }
+
     const std::string strTimestamp = DateTimeStrFormat("%Y-%m-%d-%H-%M-%S", GetTime());
     boost::filesystem::path pathDest = pathBackups / (wallet.strWalletFile + "." + strTimestamp);
 

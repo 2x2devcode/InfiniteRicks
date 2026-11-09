@@ -34,6 +34,9 @@ bool BackupWallet(const CWallet& wallet, const std::string& strDest);
  * Write a timestamped wallet.dat copy under <datadir>/backups/.
  * File name format: wallet.dat.YYYY-MM-DD-HH-MM-SS (UTC).
  *
+ * At most one automatic backup is kept per calendar day (UTC). Later open/close
+ * events on the same day are skipped if a backup for that date already exists.
+ *
  * When fFlushFirst is true, Berkeley DB is flushed/closed before the copy
  * (safe while the wallet is open). When false, the caller must already have
  * flushed the DB environment (e.g. during Shutdown).

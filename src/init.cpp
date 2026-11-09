@@ -89,6 +89,7 @@ void Shutdown(void* parg)
 
         // Timestamped wallet.dat backup on close (DB already flushed above).
         // Stored under <datadir>/backups/ as wallet.dat.YYYY-MM-DD-HH-MM-SS
+        // (at most one automatic backup per UTC day).
         if (pwalletMain)
             AutoBackupWallet(*pwalletMain, false /* fFlushFirst */);
 
@@ -921,6 +922,7 @@ bool AppInit2()
 
     // Timestamped wallet.dat backup on open.
     // Stored under <datadir>/backups/ as wallet.dat.YYYY-MM-DD-HH-MM-SS
+    // (at most one automatic backup per UTC day).
     AutoBackupWallet(*pwalletMain, true /* fFlushFirst */);
 
     CBlockIndex *pindexRescan = pindexBest;
