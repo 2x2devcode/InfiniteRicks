@@ -654,6 +654,55 @@ bool BackupWallet(const CWallet& wallet, const string& strDest)
     return false;
 }
 
+bool AutoBackupWallet(const CWallet& wallet, bool fFlushFirst)
+{
+    if (!wallet.fFileBacked || wallet.strWalletFile.empty())
+        return false;
+
+    boost::filesystem::path pathSrc = GetDataDir() / wallet.strWalletFile;
+    if (!boost::filesystem::exists(pathSrc))
+    {
+        printf("AutoBackupWallet: wallet file %s does not exist yet, skipping backup\n",
+               pathSrc.string().c_str());
+        return false;
+    }
+
+    // Destination: <datadir>/backups/wallet.dat.YYYY-MM-DD-HH-MM-SS
+    boost::filesystem::path pathBackups = GetDataDir() / "backups";
+    try {
+        boost::filesystem::create_directories(pathBackups);
+    } catch (const boost::filesystem::filesystem_error& e) {
+        printf("AutoBackupWallet: failed to create backups directory %s - %s\n",
+               pathBackups.string().c_str(), e.what());
+        return false;
+    }
+
+    const std::string strTimestamp = DateTimeStrFormat("%Y-%m-%d-%H-%M-%S", GetTime());
+    boost::filesystem::path pathDest = pathBackups / (wallet.strWalletFile + "." + strTimestamp);
+
+    if (fFlushFirst)
+    {
+        // Flush Berkeley DB first, then copy (same safety path as RPC backupwallet).
+        // BackupWallet returns false if shutdown starts while waiting for a free handle.
+        return BackupWallet(wallet, pathDest.string());
+    }
+
+    // Shutdown path: DB environment was already flushed by the caller.
+    try {
+#if BOOST_VERSION >= 104000
+        boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_option::overwrite_if_exists);
+#else
+        boost::filesystem::copy_file(pathSrc, pathDest);
+#endif
+        printf("AutoBackupWallet: saved %s\n", pathDest.string().c_str());
+        return true;
+    } catch (const boost::filesystem::filesystem_error& e) {
+        printf("AutoBackupWallet: error copying wallet to %s - %s\n",
+               pathDest.string().c_str(), e.what());
+        return false;
+    }
+}
+
 //
 // Try to (very carefully!) recover wallet.dat if there is a problem.
 //

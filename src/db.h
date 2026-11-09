@@ -30,6 +30,16 @@ extern unsigned int nWalletDBUpdated;
 void ThreadFlushWalletDB(void* parg);
 bool BackupWallet(const CWallet& wallet, const std::string& strDest);
 
+/**
+ * Write a timestamped wallet.dat copy under <datadir>/backups/.
+ * File name format: wallet.dat.YYYY-MM-DD-HH-MM-SS (UTC).
+ *
+ * When fFlushFirst is true, Berkeley DB is flushed/closed before the copy
+ * (safe while the wallet is open). When false, the caller must already have
+ * flushed the DB environment (e.g. during Shutdown).
+ */
+bool AutoBackupWallet(const CWallet& wallet, bool fFlushFirst = true);
+
 
 class CDBEnv
 {
