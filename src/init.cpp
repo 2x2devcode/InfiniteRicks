@@ -86,6 +86,12 @@ void Shutdown(void* parg)
         bitdb.Flush(false);
         StopNode();
         bitdb.Flush(true);
+
+        // Timestamped wallet.dat backup on close (DB already flushed above).
+        // Stored under <datadir>/backups/ as wallet.dat.YYYY-MM-DD-HH-MM-SS
+        if (pwalletMain)
+            AutoBackupWallet(*pwalletMain, false /* fFlushFirst */);
+
         boost::filesystem::remove(GetPidFile());
         UnregisterWallet(pwalletMain);
         delete pwalletMain;
@@ -912,6 +918,10 @@ bool AppInit2()
     printf(" wallet      %15" PRId64 "ms\n", GetTimeMillis() - nStart);
 
     RegisterWallet(pwalletMain);
+
+    // Timestamped wallet.dat backup on open.
+    // Stored under <datadir>/backups/ as wallet.dat.YYYY-MM-DD-HH-MM-SS
+    AutoBackupWallet(*pwalletMain, true /* fFlushFirst */);
 
     CBlockIndex *pindexRescan = pindexBest;
     if (GetBoolArg("-rescan"))
