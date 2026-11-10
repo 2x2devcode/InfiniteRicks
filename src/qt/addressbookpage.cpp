@@ -53,13 +53,22 @@ AddressBookPage::AddressBookPage(Mode mode, Tabs tab, QWidget *parent) :
     case SendingTab:
         ui->labelExplanation->setVisible(false);
         ui->deleteButton->setVisible(true);
+#if !defined(Q_OS_ANDROID)
         ui->signMessage->setVisible(false);
+#endif
         break;
     case ReceivingTab:
         ui->deleteButton->setVisible(false);
+#if !defined(Q_OS_ANDROID)
         ui->signMessage->setVisible(true);
+#endif
         break;
     }
+
+#if defined(Q_OS_ANDROID)
+    ui->signMessage->hide();
+    ui->verifyMessage->hide();
+#endif
 
     // Context menu actions
     QAction *copyLabelAction = new QAction(tr("Copy &Label"), this);
@@ -79,10 +88,12 @@ AddressBookPage::AddressBookPage(Mode mode, Tabs tab, QWidget *parent) :
         contextMenu->addAction(deleteAction);
     contextMenu->addSeparator();
     contextMenu->addAction(showQRCodeAction);
+#if !defined(Q_OS_ANDROID)
     if(tab == ReceivingTab)
         contextMenu->addAction(signMessageAction);
     else if(tab == SendingTab)
         contextMenu->addAction(verifyMessageAction);
+#endif
 
     // Connect signals for context menu actions
     connect(copyAddressAction, SIGNAL(triggered()), this, SLOT(on_copyToClipboard_clicked()));
@@ -246,6 +257,22 @@ void AddressBookPage::selectionChanged()
 
     if(table->selectionModel()->hasSelection())
     {
+#if defined(Q_OS_ANDROID)
+        if(tab == SendingTab)
+        {
+            ui->deleteButton->setEnabled(true);
+            ui->deleteButton->setVisible(true);
+            deleteAction->setEnabled(true);
+        }
+        else
+        {
+            ui->deleteButton->setEnabled(false);
+            ui->deleteButton->setVisible(false);
+            deleteAction->setEnabled(false);
+        }
+        ui->signMessage->setVisible(false);
+        ui->verifyMessage->setVisible(false);
+#else
         switch(tab)
         {
         case SendingTab:
@@ -269,6 +296,7 @@ void AddressBookPage::selectionChanged()
             ui->verifyMessage->setVisible(false);
             break;
         }
+#endif
         ui->copyToClipboard->setEnabled(true);
         ui->showQRCode->setEnabled(true);
     }

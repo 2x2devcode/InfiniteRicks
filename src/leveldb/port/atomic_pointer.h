@@ -75,6 +75,13 @@ inline void MemoryBarrier() {
 }
 #define LEVELDB_HAVE_MEMORY_BARRIER
 
+// AArch64 (Android arm64-v8a and other 64-bit ARM targets)
+#elif defined(__aarch64__)
+inline void MemoryBarrier() {
+  __asm__ __volatile__("dmb ish" ::: "memory");
+}
+#define LEVELDB_HAVE_MEMORY_BARRIER
+
 // ARM Linux
 #elif defined(ARCH_CPU_ARM_FAMILY) && defined(__linux__)
 typedef void (*LinuxKernelMemoryBarrierFunc)(void);

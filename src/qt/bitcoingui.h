@@ -2,6 +2,7 @@
 #define BITCOINGUI_H
 
 #include <QMainWindow>
+#include <QStringList>
 #include <QSystemTrayIcon>
 
 #include <stdint.h>
@@ -16,6 +17,7 @@ class SendCoinsDialog;
 class SignVerifyMessageDialog;
 class Notificator;
 class RPCConsole;
+class AndroidBottomNav;
 
 QT_BEGIN_NAMESPACE
 class QLabel;
@@ -48,6 +50,9 @@ public:
         functionality.
     */
     void setWalletModel(WalletModel *walletModel);
+
+    bool isRestartRequested() const { return !restartArgs.isEmpty(); }
+    QStringList getRestartArgs() const { return restartArgs; }
 
 protected:
     void changeEvent(QEvent *e);
@@ -83,7 +88,6 @@ private:
     QAction *addressBookAction;
     QAction *signMessageAction;
     QAction *verifyMessageAction;
-    QAction *aboutAction;
     QAction *receiveCoinsAction;
     QAction *optionsAction;
     QAction *toggleHideAction;
@@ -103,7 +107,10 @@ private:
 
     QMovie *syncIconMovie;
 
+    AndroidBottomNav *androidBottomNav;
+
     uint64_t nWeight;
+    QStringList restartArgs;
 
     /** Create the main UI actions. */
     void createActions();
@@ -137,6 +144,7 @@ public slots:
     */
     void askFee(qint64 nFeeRequired, bool *payFee);
     void handleURI(QString strURI);
+    void handleRestart(QStringList args);
 
 private slots:
     /** Switch to overview (home) page */
@@ -157,8 +165,6 @@ private slots:
 
     /** Show configuration dialog */
     void optionsClicked();
-    /** Show about dialog */
-    void aboutClicked();
 #ifndef Q_OS_MAC
     /** Handle tray icon clicked */
     void trayIconActivated(QSystemTrayIcon::ActivationReason reason);

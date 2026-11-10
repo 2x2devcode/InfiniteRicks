@@ -1,0 +1,220 @@
+/* InfiniteRicks — Dash-inspired layout with Matrix green accent (#5EAE4C). */
+
+QWidget {
+    background-color: #eef0f2;
+    color: #1f2933;
+    font-size: 9pt;
+}
+
+QMainWindow::separator {
+    background: #3a4048;
+    width: 1px;
+    height: 1px;
+}
+
+/* Left navigation sidebar */
+QToolBar#sidebar {
+    background: #23282e;
+    border: none;
+    border-right: 1px solid #1a1e23;
+    spacing: 2px;
+    padding: 8px 4px;
+    min-width: 84px;
+    max-width: 84px;
+}
+
+QToolBar#sidebar QToolButton {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 4px;
+    color: #c5cad1;
+    font-size: 8pt;
+}
+
+QToolBar#sidebar QToolButton:hover {
+    background: #2f353d;
+    color: #ffffff;
+}
+
+QToolBar#sidebar QToolButton:checked {
+    background: #2f353d;
+    color: #5eae4c;
+    border-left: 3px solid #5eae4c;
+    padding-left: 1px;
+}
+
+QWidget#contentArea {
+    background-color: #eef0f2;
+}
+
+QStackedWidget {
+    background: transparent;
+}
+
+QStatusBar {
+    background: #ffffff;
+    border-top: 1px solid #d8dde3;
+}
+
+QStatusBar QLabel {
+    padding: 0 4px;
+}
+
+QFrame#frame, QFrame#frame_2, QFrame#frameSync {
+    background: #ffffff;
+    border: 1px solid #d8dde3;
+    border-radius: 6px;
+}
+
+QFrame#frame QLabel,
+QFrame#frame_2 QLabel {
+    background-color: #ffffff;
+    color: #1f2933;
+    border: none;
+}
+
+QLabel#label_5, QLabel#label_4 {
+    background-color: #ffffff;
+}
+
+QFrame#frameSync {
+    border-left: 4px solid #5eae4c;
+}
+
+QFrame {
+    border-radius: 6px;
+}
+
+QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background: #ffffff;
+    border: 1px solid #c5cad1;
+    border-radius: 4px;
+    padding: 4px 6px;
+    min-height: 1.2em;
+}
+
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus,
+QDoubleSpinBox:focus, QComboBox:focus {
+    border-color: #5eae4c;
+}
+
+QPushButton {
+    background: #ffffff;
+    border: 1px solid #c5cad1;
+    border-radius: 4px;
+    padding: 5px 12px;
+    min-height: 1.2em;
+}
+
+QPushButton:hover {
+    background: #f4f6f8;
+    border-color: #9aa3ad;
+}
+
+QPushButton:pressed {
+    background: #e8ebef;
+}
+
+QPushButton:default {
+    background: #5eae4c;
+    border-color: #5eae4c;
+    color: #ffffff;
+}
+
+QPushButton:default:hover {
+    background: #4d9a3e;
+    border-color: #4d9a3e;
+}
+
+QTableView, QListView, QTreeView {
+    background: #ffffff;
+    border: 1px solid #d8dde3;
+    border-radius: 4px;
+    alternate-background-color: #f7f8fa;
+    gridline-color: #e8ebef;
+    selection-background-color: #d8f0d4;
+    selection-color: #1f2933;
+}
+
+QHeaderView::section {
+    background: #f4f6f8;
+    border: none;
+    border-bottom: 1px solid #d8dde3;
+    padding: 4px 6px;
+    font-weight: 600;
+}
+
+QTabWidget::pane {
+    border: 1px solid #d8dde3;
+    border-radius: 4px;
+    background: #ffffff;
+    top: -1px;
+}
+
+QTabBar::tab {
+    background: #e8ebef;
+    border: 1px solid #d8dde3;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    padding: 6px 12px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background: #ffffff;
+    color: #5eae4c;
+}
+
+QLabel#labelWalletStatus, QLabel#labelTransactionsStatus {
+    color: #c2410c;
+    font-weight: normal;
+}
+
+QLabel#labelSyncStatus {
+    color: #5eae4c;
+}
+
+QListView#listTransactions {
+    background: transparent;
+    border: none;
+}
+
+QProgressBar {
+    border: 1px solid #d8dde3;
+    border-radius: 4px;
+    background: #ffffff;
+    text-align: center;
+    max-height: 18px;
+    min-height: 18px;
+}
+
+QProgressBar::chunk {
+    background: #5eae4c;
+    border-radius: 3px;
+}
+
+QMenuBar {
+    background: #ffffff;
+    border-bottom: 1px solid #d8dde3;
+}
+
+QMenuBar::item:selected {
+    background: #e8f5e6;
+    color: #5eae4c;
+}
+
+QMenu {
+    background: #ffffff;
+    border: 1px solid #d8dde3;
+}
+
+QMenu::item:selected {
+    background: #e8f5e6;
+    color: #1f2933;
+}
+
+QDialog#IntroDialog {
+    background: #ffffff;
+}

@@ -11,6 +11,11 @@ else
     exit 1
 fi
 
+FILE_DIR="$(dirname "$FILE")"
+if [ "$FILE_DIR" != "." ]; then
+    mkdir -p "$FILE_DIR"
+fi
+
 if [ -e "$(which git)" ]; then
     # clean 'dirty' status of touched files that haven't been modified
     git diff >/dev/null 2>/dev/null 

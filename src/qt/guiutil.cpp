@@ -1,3 +1,25 @@
+#ifdef WIN32
+#ifdef _WIN32_WINNT
+#undef _WIN32_WINNT
+#endif
+#define _WIN32_WINNT 0x0501
+#ifdef _WIN32_IE
+#undef _WIN32_IE
+#endif
+#define _WIN32_IE 0x0501
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+/* Must be before guiutil.h (Qt pulls C++17 <cstddef>/std::byte). */
+#include <windows.h>
+#include <shlwapi.h>
+#include <shlobj.h>
+#include <shellapi.h>
+#endif
+
 #include "guiutil.h"
 #include "bitcoinaddressvalidator.h"
 #include "walletmodel.h"
@@ -18,27 +40,13 @@
 #include <QFileDialog>
 #include <QDesktopServices>
 #include <QThread>
+#include <QSettings>
+#include <QPainter>
+#include <QPixmap>
+#include <QDir>
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
-
-#ifdef WIN32
-#ifdef _WIN32_WINNT
-#undef _WIN32_WINNT
-#endif
-#define _WIN32_WINNT 0x0501
-#ifdef _WIN32_IE
-#undef _WIN32_IE
-#endif
-#define _WIN32_IE 0x0501
-#define WIN32_LEAN_AND_MEAN 1
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include "shlwapi.h"
-#include "shlobj.h"
-#include "shellapi.h"
-#endif
 
 namespace GUIUtil {
 
@@ -61,6 +69,35 @@ QFont bitcoinAddressFont()
     font.setStyleHint(QFont::TypeWriter);
 #endif
     return font;
+}
+
+QFont clearTypeFreeFont(const QFont &base)
+{
+    QFont font = base.family().isEmpty() ? QApplication::font() : base;
+#ifdef Q_OS_WIN
+    font.setFamily("Segoe UI");
+#endif
+    font.setStyleStrategy(static_cast<QFont::StyleStrategy>(
+        font.styleStrategy() | QFont::PreferAntialias | QFont::NoSubpixelAntialias | QFont::PreferQuality));
+    font.setHintingPreference(QFont::PreferNoHinting);
+    return font;
+}
+
+void applyApplicationFont(QApplication &app)
+{
+    app.setFont(clearTypeFreeFont(app.font()));
+}
+
+void fixWidgetFonts(QWidget *root)
+{
+    if (!root)
+        return;
+
+    root->setFont(clearTypeFreeFont(root->font()));
+    foreach (QObject *child, root->children()) {
+        if (QWidget *widget = qobject_cast<QWidget *>(child))
+            fixWidgetFonts(widget);
+    }
 }
 
 void setupAddressWidget(QLineEdit *widget, QWidget *parent)
@@ -213,6 +250,97 @@ QString getSaveFileName(QWidget *parent, const QString &caption,
     return result;
 }
 
+QString getExistingDirectory(QWidget *parent, const QString &caption, const QString &dir)
+{
+    return QFileDialog::getExistingDirectory(parent, caption, dir,
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+}
+
+QString getDefaultDataDir()
+{
+    return QString::fromStdString(GetDefaultDataDir().string());
+}
+
+QString expandDataDirPath(const QString &path)
+{
+    QString expanded = path.trimmed();
+    if (expanded.startsWith("~"))
+        expanded = QDir::homePath() + expanded.mid(1);
+    return QDir::fromNativeSeparators(QDir::cleanPath(expanded));
+}
+
+QString formatBytes(qint64 bytes)
+{
+    const qint64 kb = 1024;
+    const qint64 mb = kb * 1024;
+    const qint64 gb = mb * 1024;
+    if (bytes >= gb)
+        return QString::number(bytes / (double)gb, 'f', 2) + " GB";
+    if (bytes >= mb)
+        return QString::number(bytes / (double)mb, 'f', 2) + " MB";
+    if (bytes >= kb)
+        return QString::number(bytes / (double)kb, 'f', 2) + " KB";
+    return QString::number(bytes) + " B";
+}
+
+QPixmap fadedPixmap(const QPixmap &source, qreal opacity)
+{
+    if (source.isNull())
+        return source;
+
+    QPixmap result(source.size());
+    result.fill(Qt::transparent);
+
+    QPainter painter(&result);
+    painter.setOpacity(opacity);
+    painter.drawPixmap(0, 0, source);
+    painter.end();
+
+    return result;
+}
+
+bool needChooseDataDirectory()
+{
+#if defined(Q_OS_ANDROID)
+    if (!mapArgs.count("-datadir")) {
+        boost::filesystem::path defaultDir = GetDefaultDataDir();
+        boost::filesystem::create_directories(defaultDir);
+        mapArgs["-datadir"] = defaultDir.string();
+    }
+    return false;
+#endif
+
+    // Explicit CLI -datadir: never show the intro (caller reports missing path)
+    if (mapArgs.count("-datadir"))
+        return false;
+
+    bool testnet = GetBoolArg("-testnet", false);
+    QSettings settings("InfiniteRicks", testnet ? "InfiniteRicks-Qt-testnet" : "InfiniteRicks-Qt");
+    if (settings.contains("strDataDir")) {
+        QString stored = expandDataDirPath(settings.value("strDataDir").toString());
+        if (!stored.isEmpty()) {
+            boost::filesystem::path storedPath(stored.toStdString());
+            if (boost::filesystem::is_directory(storedPath)) {
+                mapArgs["-datadir"] = storedPath.string();
+                return false;
+            }
+        }
+        // Saved path is gone or invalid — open the picker like first run
+        settings.remove("strDataDir");
+        return true;
+    }
+
+    boost::filesystem::path defaultDir = GetDefaultDataDir();
+    if (!boost::filesystem::exists(defaultDir))
+        return true;
+
+    if (!boost::filesystem::exists(defaultDir / "wallet.dat") &&
+        !boost::filesystem::exists(defaultDir / "InfiniteRicks.conf"))
+        return true;
+
+    return false;
+}
+
 Qt::ConnectionType blockingGUIThreadConnection()
 {
     if(QThread::currentThread() != QCoreApplication::instance()->thread())
@@ -341,7 +469,7 @@ bool SetStartOnSystemStartup(bool fAutoStart)
     return true;
 }
 
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
 
 // Follow the Desktop Application Autostart Spec:
 //  http://standards.freedesktop.org/autostart-spec/autostart-spec-latest.html

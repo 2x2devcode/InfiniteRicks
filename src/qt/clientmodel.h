@@ -1,6 +1,8 @@
 #ifndef CLIENTMODEL_H
 #define CLIENTMODEL_H
 
+#include <boost/signals2/connection.hpp>
+
 #include <QObject>
 
 class OptionsModel;
@@ -52,6 +54,10 @@ private:
     int numBlocksAtStartup;
 
     QTimer *pollTimer;
+
+    boost::signals2::scoped_connection m_connNotifyBlocksChanged;
+    boost::signals2::scoped_connection m_connNotifyNumConnectionsChanged;
+    boost::signals2::scoped_connection m_connNotifyAlertChanged;
 
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();

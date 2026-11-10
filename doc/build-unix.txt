@@ -14,7 +14,14 @@ To Build
 --------
 
 cd src/
-make -f makefile.unix            # Headless InfiniteRicks
+make -f makefile.unix            # Headless InfiniteRicks (daemon + cli + tx)
+make -f makefile.unix InfiniteRicksd
+make -f makefile.unix InfiniteRicks-cli
+make -f makefile.unix InfiniteRicks-tx
+
+The makefile must be run from the src/ directory (not the repository root).
+InfiniteRicks-cli and InfiniteRicks-tx require branch cursor/infinitericks-cli-tx-ab49
+(or PR #32 merged into your checkout).
 
 See readme-qt.rst for instructions on building InfiniteRicks QT,
 the graphical InfiniteRicks.
@@ -61,13 +68,14 @@ Versions used in this release:
 
 Dependency Build Instructions: Ubuntu & Debian
 ----------------------------------------------
-sudo apt-get install build-essential
-sudo apt-get install libssl-dev
-sudo apt-get install libdb++-dev
-sudo apt-get install libboost-all-dev
-sudo apt-get install libqrencode-dev
-***This Step is needed as well****
-sudo apt-get install libqt4-dev libminiupnpc-dev
+Ubuntu 22.04 / 24.04 (daemon):
+sudo apt-get install build-essential libssl-dev libdb++-dev libboost-all-dev libminiupnpc-dev
+
+Ubuntu 18.04 and earlier (daemon):
+sudo apt-get install build-essential libssl-dev libdb++-dev libboost-all-dev libminiupnpc-dev
+
+Qt GUI (optional, Ubuntu 22.04 / 24.04):
+sudo apt-get install qtbase5-dev qttools5-dev-tools libqrencode-dev
 
 If using Boost 1.37, append -mt to the boost libraries in the makefile.
 

@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2012 The Bitcoin developers
+// Copyright (c) 2014-2026 The InfiniteRicks developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -530,6 +531,27 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
     return result;
 }
 
+DBErrors CWalletDB::ZapWalletTx(CWallet* pwallet, std::vector<CWalletTx>& vWtx)
+{
+    vWtx.clear();
+
+    for (std::map<uint256, CWalletTx>::iterator it = pwallet->mapWallet.begin();
+         it != pwallet->mapWallet.end(); ++it)
+    {
+        vWtx.push_back(it->second);
+    }
+
+    BOOST_FOREACH(const CWalletTx& wtx, vWtx)
+    {
+        uint256 hash = wtx.GetHash();
+        if (!EraseTx(hash))
+            return DB_CORRUPT;
+        pwallet->mapWallet.erase(hash);
+    }
+
+    return DB_LOAD_OK;
+}
+
 void ThreadFlushWalletDB(void* parg)
 {
     // Make this thread recognisable as the wallet flushing thread
@@ -608,20 +630,20 @@ bool BackupWallet(const CWallet& wallet, const string& strDest)
                 bitdb.mapFileUseCount.erase(wallet.strWalletFile);
 
                 // Copy wallet.dat
-                filesystem::path pathSrc = GetDataDir() / wallet.strWalletFile;
-                filesystem::path pathDest(strDest);
-                if (filesystem::is_directory(pathDest))
+                boost::filesystem::path pathSrc = GetDataDir() / wallet.strWalletFile;
+                boost::filesystem::path pathDest(strDest);
+                if (boost::filesystem::is_directory(pathDest))
                     pathDest /= wallet.strWalletFile;
 
                 try {
 #if BOOST_VERSION >= 104000
-                    filesystem::copy_file(pathSrc, pathDest, filesystem::copy_option::overwrite_if_exists);
+                    boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_option::overwrite_if_exists);
 #else
-                    filesystem::copy_file(pathSrc, pathDest);
+                    boost::filesystem::copy_file(pathSrc, pathDest);
 #endif
                     printf("copied wallet.dat to %s\n", pathDest.string().c_str());
                     return true;
-                } catch(const filesystem::filesystem_error &e) {
+                } catch(const boost::filesystem::filesystem_error &e) {
                     printf("error copying wallet.dat to %s - %s\n", pathDest.string().c_str(), e.what());
                     return false;
                 }
@@ -630,6 +652,79 @@ bool BackupWallet(const CWallet& wallet, const string& strDest)
         MilliSleep(100);
     }
     return false;
+}
+
+bool AutoBackupWallet(const CWallet& wallet, bool fFlushFirst)
+{
+    if (!wallet.fFileBacked || wallet.strWalletFile.empty())
+        return false;
+
+    boost::filesystem::path pathSrc = GetDataDir() / wallet.strWalletFile;
+    if (!boost::filesystem::exists(pathSrc))
+    {
+        printf("AutoBackupWallet: wallet file %s does not exist yet, skipping backup\n",
+               pathSrc.string().c_str());
+        return false;
+    }
+
+    // Destination: <datadir>/backups/wallet.dat.YYYY-MM-DD-HH-MM-SS
+    boost::filesystem::path pathBackups = GetDataDir() / "backups";
+    try {
+        boost::filesystem::create_directories(pathBackups);
+    } catch (const boost::filesystem::filesystem_error& e) {
+        printf("AutoBackupWallet: failed to create backups directory %s - %s\n",
+               pathBackups.string().c_str(), e.what());
+        return false;
+    }
+
+    // Limit automatic backups to one file per UTC calendar day.
+    // Match any existing backup whose name starts with "wallet.dat.YYYY-MM-DD".
+    const std::string strDate = DateTimeStrFormat("%Y-%m-%d", GetTime());
+    const std::string strDayPrefix = wallet.strWalletFile + "." + strDate;
+    try {
+        for (boost::filesystem::directory_iterator it(pathBackups);
+             it != boost::filesystem::directory_iterator(); ++it)
+        {
+            if (!boost::filesystem::is_regular_file(it->status()))
+                continue;
+            const std::string strName = it->path().filename().string();
+            if (strName.compare(0, strDayPrefix.size(), strDayPrefix) == 0)
+            {
+                printf("AutoBackupWallet: backup for %s already exists (%s), skipping\n",
+                       strDate.c_str(), strName.c_str());
+                return true;
+            }
+        }
+    } catch (const boost::filesystem::filesystem_error& e) {
+        printf("AutoBackupWallet: failed to scan backups directory %s - %s\n",
+               pathBackups.string().c_str(), e.what());
+        return false;
+    }
+
+    const std::string strTimestamp = DateTimeStrFormat("%Y-%m-%d-%H-%M-%S", GetTime());
+    boost::filesystem::path pathDest = pathBackups / (wallet.strWalletFile + "." + strTimestamp);
+
+    if (fFlushFirst)
+    {
+        // Flush Berkeley DB first, then copy (same safety path as RPC backupwallet).
+        // BackupWallet returns false if shutdown starts while waiting for a free handle.
+        return BackupWallet(wallet, pathDest.string());
+    }
+
+    // Shutdown path: DB environment was already flushed by the caller.
+    try {
+#if BOOST_VERSION >= 104000
+        boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_option::overwrite_if_exists);
+#else
+        boost::filesystem::copy_file(pathSrc, pathDest);
+#endif
+        printf("AutoBackupWallet: saved %s\n", pathDest.string().c_str());
+        return true;
+    } catch (const boost::filesystem::filesystem_error& e) {
+        printf("AutoBackupWallet: error copying wallet to %s - %s\n",
+               pathDest.string().c_str(), e.what());
+        return false;
+    }
 }
 
 //

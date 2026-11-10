@@ -7,6 +7,8 @@
 #include "optionsmodel.h"
 #include "guiutil.h"
 #include "guiconstants.h"
+#include "introdialog.h"
+#include "androidlog.h"
 
 #include "init.h"
 #include "ui_interface.h"
@@ -19,6 +21,10 @@
 #include <QTranslator>
 #include <QSplashScreen>
 #include <QLibraryInfo>
+#include <QFile>
+#include <QFont>
+#include <QProcess>
+#include <QSettings>
 
 #if defined(BITCOIN_NEED_QT_PLUGINS) && !defined(_BITCOIN_QT_PLUGINS_INCLUDED)
 #define _BITCOIN_QT_PLUGINS_INCLUDED
@@ -37,6 +43,12 @@ static QSplashScreen *splashref;
 
 static void ThreadSafeMessageBox(const std::string& message, const std::string& caption, int style)
 {
+#if defined(Q_OS_ANDROID)
+    (void)style;
+    IR_LOGE("%s: %s", caption.c_str(), message.c_str());
+    fprintf(stderr, "%s: %s\n", caption.c_str(), message.c_str());
+    return;
+#endif
     // Message from network thread
     if(guiref)
     {
@@ -83,7 +95,7 @@ static void InitMessage(const std::string &message)
 {
     if(splashref)
     {
-        splashref->showMessage(QString::fromStdString(message), Qt::AlignBottom|Qt::AlignHCenter, QColor(232,186,63));
+        splashref->showMessage(QString::fromStdString(message), Qt::AlignBottom|Qt::AlignHCenter, QColor(94, 174, 76));
         QApplication::instance()->processEvents();
     }
 }
@@ -106,15 +118,32 @@ static std::string Translate(const char* psz)
 static void handleRunawayException(std::exception *e)
 {
     PrintExceptionContinue(e, "Runaway exception");
+#if defined(Q_OS_ANDROID)
+    IR_LOGE("Runaway exception: %s", strMiscWarning.c_str());
+    fprintf(stderr, "Runaway exception: %s\n", strMiscWarning.c_str());
+    exit(1);
+#else
     QMessageBox::critical(0, "Runaway exception", BitcoinGUI::tr("A fatal error occurred. InfiniteRicks can no longer continue safely and will quit.") + QString("\n\n") + QString::fromStdString(strMiscWarning));
     exit(1);
+#endif
 }
+
+#if defined(__ANDROID__)
+#include <android/log.h>
+__attribute__((constructor(101))) static void ir_library_loaded()
+{
+    __android_log_print(ANDROID_LOG_INFO, "InfiniteRicks", "native library loaded (v211)");
+}
+#endif
 
 #ifndef BITCOIN_QT_TEST
 int main(int argc, char *argv[])
 {
+    IR_LOGI("main() starting (v211) argc=%d", argc);
     // Do this early as we don't want to bother initializing if we are just calling IPC
+#ifndef Q_OS_ANDROID
     ipcScanRelay(argc, argv);
+#endif
 
 #if QT_VERSION < 0x050000
     // Internal string conversion is all UTF-8
@@ -123,7 +152,31 @@ int main(int argc, char *argv[])
 #endif
 
     Q_INIT_RESOURCE(bitcoin);
+#if defined(Q_OS_ANDROID)
+    qputenv("QT_QPA_PLATFORM", "android");
+#endif
+#if defined(Q_OS_WIN)
+    // DirectWrite subpixel antialiasing looks like a drop shadow on dark sidebars.
+    qputenv("QT_QPA_PLATFORM", "windows:fontengine=freetype");
+    QApplication::setDesktopSettingsAware(false);
+#endif
     QApplication app(argc, argv);
+#if !defined(Q_OS_ANDROID)
+    QApplication::setStyle("Fusion");
+#endif
+
+#if defined(Q_OS_ANDROID)
+    const char *styleResource = ":/styles/app-android";
+#else
+    const char *styleResource = ":/styles/app";
+#endif
+    QFile styleFile(styleResource);
+    if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
+        app.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
+        styleFile.close();
+    }
+
+    GUIUtil::applyApplicationFont(app);
 
     // Install global event filter that makes sure that long tooltips can be word-wrapped
     app.installEventFilter(new GUIUtil::ToolTipToRichTextFilter(TOOLTIP_WRAP_THRESHOLD, &app));
@@ -131,14 +184,57 @@ int main(int argc, char *argv[])
     // Command-line options take precedence:
     ParseParameters(argc, argv);
 
+#if defined(Q_OS_ANDROID)
+    SoftSetBoolArg("-listen", false);
+    SoftSetBoolArg("-upnp", false);
+    SoftSetBoolArg("-discover", false);
+    SoftSetBoolArg("-printtoconsole", true);
+#endif
+
+    // Remember whether -datadir came from the command line (before IntroDialog may set it)
+    const bool fDataDirFromCmdLine = mapArgs.count("-datadir") != 0;
+
+    if (!IntroDialog::pickDataDirectory())
+        return 0;
+
     // ... then bitcoin.conf:
     if (!boost::filesystem::is_directory(GetDataDir(false)))
     {
         // This message can not be translated, as translation is not initialized yet
         // (which not yet possible because lang=XX can be overridden in bitcoin.conf in the data directory)
-        QMessageBox::critical(0, "InfiniteRicks",
-                              QString("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(mapArgs["-datadir"])));
+        const std::string msg = strprintf("Error: Specified data directory \"%s\" does not exist.", mapArgs["-datadir"].c_str());
+        if (fDataDirFromCmdLine) {
+#if defined(Q_OS_ANDROID)
+            IR_LOGE("%s", msg.c_str());
+            fprintf(stderr, "%s\n", msg.c_str());
+#else
+            QMessageBox::critical(0, "InfiniteRicks", QString::fromStdString(msg));
+#endif
+            return 1;
+        }
+
+#if defined(Q_OS_ANDROID)
+        IR_LOGE("%s", msg.c_str());
+        fprintf(stderr, "%s\n", msg.c_str());
         return 1;
+#else
+        // Saved data directory disappeared: open the first-run picker instead of aborting
+        mapArgs.erase("-datadir");
+        {
+            bool testnet = GetBoolArg("-testnet", false);
+            QSettings settings("InfiniteRicks", testnet ? "InfiniteRicks-Qt-testnet" : "InfiniteRicks-Qt");
+            settings.remove("strDataDir");
+        }
+        if (!IntroDialog::pickDataDirectory())
+            return 0;
+        if (!boost::filesystem::is_directory(GetDataDir(false)))
+        {
+            QMessageBox::critical(0, "InfiniteRicks",
+                QString("Error: Specified data directory \"%1\" does not exist.")
+                    .arg(QString::fromStdString(mapArgs["-datadir"])));
+            return 1;
+        }
+#endif
     }
     ReadConfigFile(mapArgs, mapMultiArgs);
 
@@ -199,7 +295,12 @@ int main(int argc, char *argv[])
     }
 
     QSplashScreen splash(QPixmap(":/images/splash"), 0);
-    if (GetBoolArg("-splash", true) && !GetBoolArg("-min"))
+#if defined(Q_OS_ANDROID)
+    const bool showSplash = false;
+#else
+    const bool showSplash = GetBoolArg("-splash", true) && !GetBoolArg("-min");
+#endif
+    if (showSplash)
     {
         splash.show();
         splashref = &splash;
@@ -212,11 +313,15 @@ int main(int argc, char *argv[])
     try
     {
         // Regenerate startup link, to fix links to old versions
+#ifndef Q_OS_ANDROID
         if (GUIUtil::GetStartOnSystemStartup())
             GUIUtil::SetStartOnSystemStartup(true);
+#endif
 
+        IR_LOGI("creating main window");
         BitcoinGUI window;
         guiref = &window;
+        IR_LOGI("running AppInit2");
         if(AppInit2())
         {
             {
@@ -242,9 +347,20 @@ int main(int argc, char *argv[])
                     window.show();
                 }
 
-                // Place this here as guiref has to be defined if we don't want to lose URIs
-                ipcInit(argc, argv);
+                GUIUtil::fixWidgetFonts(&window);
 
+#if defined(Q_OS_ANDROID)
+                IR_LOGI("starting P2P node");
+                if (!StartNodeThread())
+                    IR_LOGE("StartNodeThread failed");
+#endif
+
+                // Place this here as guiref has to be defined if we don't want to lose URIs
+#ifndef Q_OS_ANDROID
+                ipcInit(argc, argv);
+#endif
+
+                IR_LOGI("entering event loop");
                 app.exec();
 
                 window.hide();
@@ -252,8 +368,14 @@ int main(int argc, char *argv[])
                 window.setWalletModel(0);
                 guiref = 0;
             }
+            const bool restart = window.isRestartRequested();
+            const QStringList restartArgs = window.getRestartArgs();
+
             // Shutdown the core and its threads, but don't exit Bitcoin-Qt here
             Shutdown(NULL);
+
+            if (restart)
+                QProcess::startDetached(QApplication::applicationFilePath(), restartArgs);
         }
         else
         {

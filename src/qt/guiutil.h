@@ -6,12 +6,14 @@
 #include <QMessageBox>
 
 QT_BEGIN_NAMESPACE
+class QApplication;
 class QFont;
 class QLineEdit;
 class QWidget;
 class QDateTime;
 class QUrl;
 class QAbstractItemView;
+class QPixmap;
 QT_END_NAMESPACE
 class SendCoinsRecipient;
 
@@ -25,6 +27,11 @@ namespace GUIUtil
 
     // Render Bitcoin addresses in monospace font
     QFont bitcoinAddressFont();
+
+    // Crisp text on Windows (avoid ClearType/subpixel fringe that looks like shadows)
+    QFont clearTypeFreeFont(const QFont &base = QFont());
+    void applyApplicationFont(QApplication &app);
+    void fixWidgetFonts(QWidget *root);
 
     // Set up widgets for address and amounts
     void setupAddressWidget(QLineEdit *widget, QWidget *parent);
@@ -60,6 +67,16 @@ namespace GUIUtil
     QString getSaveFileName(QWidget *parent=0, const QString &caption=QString(),
                                    const QString &dir=QString(), const QString &filter=QString(),
                                    QString *selectedSuffixOut=0);
+
+    QString getExistingDirectory(QWidget *parent, const QString &caption, const QString &dir);
+
+    QString getDefaultDataDir();
+    QString expandDataDirPath(const QString &path);
+    QString formatBytes(qint64 bytes);
+    QPixmap fadedPixmap(const QPixmap &source, qreal opacity);
+
+    /** True when the user must pick a data directory before startup continues. */
+    bool needChooseDataDirectory();
 
     /** Get connection type to call object slot in GUI thread with invokeMethod. The call will be blocking.
 

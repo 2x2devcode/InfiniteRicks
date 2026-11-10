@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2012 The Bitcoin developers
+// Copyright (c) 2014-2026 The InfiniteRicks developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -75,7 +76,8 @@ bool fLogTimestamps = false;
 CMedianFilter<int64_t> vTimeOffsets(200,0);
 bool fReopenDebugLog = false;
 
-// Init OpenSSL library multithreading support
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+// Init OpenSSL library multithreading support (not needed for OpenSSL >= 1.1.0)
 static CCriticalSection** ppmutexOpenSSL;
 void locking_callback(int mode, int i, const char* file, int line)
 {
@@ -85,6 +87,7 @@ void locking_callback(int mode, int i, const char* file, int line)
         LEAVE_CRITICAL_SECTION(*ppmutexOpenSSL[i]);
     }
 }
+#endif
 
 LockedPageManager LockedPageManager::instance;
 
@@ -94,11 +97,13 @@ class CInit
 public:
     CInit()
     {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         // Init OpenSSL library multithreading support
         ppmutexOpenSSL = (CCriticalSection**)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(CCriticalSection*));
         for (int i = 0; i < CRYPTO_num_locks(); i++)
             ppmutexOpenSSL[i] = new CCriticalSection();
         CRYPTO_set_locking_callback(locking_callback);
+#endif
 
 #ifdef WIN32
         // Seed random number generator with screen scrape and other hardware sources
@@ -110,11 +115,13 @@ public:
     }
     ~CInit()
     {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         // Shutdown OpenSSL library multithreading support
         CRYPTO_set_locking_callback(NULL);
         for (int i = 0; i < CRYPTO_num_locks(); i++)
             delete ppmutexOpenSSL[i];
         OPENSSL_free(ppmutexOpenSSL);
+#endif
     }
 }
 instance_of_cinit;
@@ -1004,6 +1011,9 @@ boost::filesystem::path GetDefaultDataDir()
     pathRet /= "Library/Application Support";
     fs::create_directory(pathRet);
     return pathRet / "InfiniteRicks";
+#elif defined(__ANDROID__)
+    // Android: HOME is set by InfiniteRicksApplication / InfiniteRicksQtActivity
+    return pathRet / ".InfiniteRicks";
 #else
     // Unix
     return pathRet / ".InfiniteRicks";

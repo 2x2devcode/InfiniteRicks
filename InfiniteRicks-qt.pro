@@ -1,8 +1,8 @@
 TEMPLATE = app
 TARGET = InfiniteRicks-qt
-VERSION = 2.0.0
+VERSION = 2.1.0
 INCLUDEPATH += src src/json src/qt
-DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
+DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE BOOST_BIND_GLOBAL_PLACEHOLDERS
 CONFIG += no_include_pwd
 CONFIG += thread
 
@@ -34,7 +34,7 @@ contains(RELEASE, 1) {
     # Mac: compile for maximum compatibility (10.7, 64-bit)
     macx:QMAKE_CXXFLAGS += -mmacosx-version-min=10.7 -arch x86_64 -isysroot /Developer/SDKs/MacOSX10.7.sdk
 
-    !windows:!macx {
+    !windows:!macx:!android {
         # Linux: static link
         LIBS += -Wl,-Bstatic
     }
@@ -48,7 +48,9 @@ QMAKE_LFLAGS *= -fstack-protector-all --param ssp-buffer-size=1
 # This can be enabled for Windows, when we switch to MinGW >= 4.4.x.
 }
 # for extra security on Windows: enable ASLR and DEP via GCC linker flags
-win32:QMAKE_LFLAGS *= -Wl,--large-address-aware -static
+# --large-address-aware is 32-bit PE only; x86_64 MinGW ld rejects it.
+win32:contains(QMAKE_CXX, "i686-w64-mingw32"):QMAKE_LFLAGS *= -Wl,--large-address-aware
+win32:QMAKE_LFLAGS *= -static
 win32:QMAKE_LFLAGS += -static-libgcc -static-libstdc++
 lessThan(QT_MAJOR_VERSION, 5): win32: QMAKE_LFLAGS *= -static
 
@@ -72,6 +74,7 @@ contains(USE_UPNP, -) {
         USE_UPNP=1
     }
     DEFINES += USE_UPNP=$$USE_UPNP STATICLIB
+    win32:DEFINES += MINIUPNP_STATICLIB
     INCLUDEPATH += $$MINIUPNPC_INCLUDE_PATH
     LIBS += $$join(MINIUPNPC_LIB_PATH,,-L,) -lminiupnpc
     win32:LIBS += -liphlpapi
@@ -176,7 +179,6 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/coincontroltreewidget.h \
     src/qt/sendcoinsdialog.h \
     src/qt/addressbookpage.h \
-    src/qt/signverifymessagedialog.h \
     src/qt/aboutdialog.h \
     src/qt/editaddressdialog.h \
     src/qt/bitcoinaddressvalidator.h \
@@ -241,6 +243,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/transactionview.h \
     src/qt/walletmodel.h \
     src/bitcoinrpc.h \
+    src/rpcclient.h \
     src/qt/overviewpage.h \
     src/qt/csvmodelwriter.h \
     src/crypter.h \
@@ -249,12 +252,18 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/bitcoinunits.h \
     src/qt/qvaluecombobox.h \
     src/qt/askpassphrasedialog.h \
+    src/qt/introdialog.h \
+    src/qt/watermarkwidget.h \
+    src/qt/androidbottomnav.h \
+    src/qt/balancecardwidget.h \
     src/protocol.h \
     src/qt/notificator.h \
     src/qt/qtipcserver.h \
     src/allocators.h \
     src/ui_interface.h \
     src/qt/rpcconsole.h \
+    src/qt/peertablemodel.h \
+    src/qt/bantablemodel.h \
     src/version.h \
     src/netbase.h \
     src/clientversion.h \
@@ -268,7 +277,6 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/coincontroldialog.cpp \
     src/qt/coincontroltreewidget.cpp \
     src/qt/addressbookpage.cpp \
-    src/qt/signverifymessagedialog.cpp \
     src/qt/aboutdialog.cpp \
     src/qt/editaddressdialog.cpp \
     src/qt/bitcoinaddressvalidator.cpp \
@@ -303,6 +311,7 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/transactionview.cpp \
     src/qt/walletmodel.cpp \
     src/bitcoinrpc.cpp \
+    src/rpcclient.cpp \
     src/rpcdump.cpp \
     src/rpcnet.cpp \
     src/rpcmining.cpp \
@@ -317,10 +326,16 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/bitcoinunits.cpp \
     src/qt/qvaluecombobox.cpp \
     src/qt/askpassphrasedialog.cpp \
+    src/qt/introdialog.cpp \
+    src/qt/watermarkwidget.cpp \
+    src/qt/androidbottomnav.cpp \
+    src/qt/balancecardwidget.cpp \
     src/protocol.cpp \
     src/qt/notificator.cpp \
     src/qt/qtipcserver.cpp \
     src/qt/rpcconsole.cpp \
+    src/qt/peertablemodel.cpp \
+    src/qt/bantablemodel.cpp \
     src/noui.cpp \
     src/kernel.cpp \
     src/scrypt-arm.S \
@@ -342,24 +357,47 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
 RESOURCES += \
     src/qt/bitcoin.qrc
 
-FORMS += \
-    src/qt/forms/coincontroldialog.ui \
-    src/qt/forms/sendcoinsdialog.ui \
-    src/qt/forms/addressbookpage.ui \
-    src/qt/forms/signverifymessagedialog.ui \
-    src/qt/forms/aboutdialog.ui \
-    src/qt/forms/editaddressdialog.ui \
-    src/qt/forms/transactiondescdialog.ui \
-    src/qt/forms/overviewpage.ui \
-    src/qt/forms/sendcoinsentry.ui \
-    src/qt/forms/askpassphrasedialog.ui \
-    src/qt/forms/rpcconsole.ui \
-    src/qt/forms/optionsdialog.ui
+android {
+    FORMS += \
+        src/qt/android/forms/coincontroldialog.ui \
+        src/qt/android/forms/sendcoinsdialog.ui \
+        src/qt/android/forms/addressbookpage.ui \
+        src/qt/android/forms/aboutdialog.ui \
+        src/qt/android/forms/editaddressdialog.ui \
+        src/qt/android/forms/transactiondescdialog.ui \
+        src/qt/android/forms/overviewpage.ui \
+        src/qt/android/forms/sendcoinsentry.ui \
+        src/qt/android/forms/askpassphrasedialog.ui \
+        src/qt/android/forms/introdialog.ui \
+        src/qt/android/forms/rpcconsole.ui \
+        src/qt/android/forms/optionsdialog.ui
+} else {
+    FORMS += \
+        src/qt/forms/coincontroldialog.ui \
+        src/qt/forms/sendcoinsdialog.ui \
+        src/qt/forms/addressbookpage.ui \
+        src/qt/forms/signverifymessagedialog.ui \
+        src/qt/forms/aboutdialog.ui \
+        src/qt/forms/editaddressdialog.ui \
+        src/qt/forms/transactiondescdialog.ui \
+        src/qt/forms/overviewpage.ui \
+        src/qt/forms/sendcoinsentry.ui \
+        src/qt/forms/askpassphrasedialog.ui \
+        src/qt/forms/introdialog.ui \
+        src/qt/forms/rpcconsole.ui \
+        src/qt/forms/optionsdialog.ui
+}
+
+!android {
+    HEADERS += src/qt/signverifymessagedialog.h
+    SOURCES += src/qt/signverifymessagedialog.cpp
+}
 
 contains(USE_QRCODE, 1) {
 HEADERS += src/qt/qrcodedialog.h
 SOURCES += src/qt/qrcodedialog.cpp
-FORMS += src/qt/forms/qrcodedialog.ui
+android:FORMS += src/qt/android/forms/qrcodedialog.ui
+else:FORMS += src/qt/forms/qrcodedialog.ui
 }
 
 CODECFORTR = UTF-8
@@ -369,7 +407,9 @@ CODECFORTR = UTF-8
 TRANSLATIONS = $$files(src/qt/locale/bitcoin_*.ts)
 
 isEmpty(QMAKE_LRELEASE) {
-    win32:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]\\lrelease.exe
+    # Cross-compiling Windows on Linux: MXE QT_INSTALL_BINS has no runnable lrelease.
+    unix:win32:QMAKE_LRELEASE = lrelease
+    else:win32:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]/lrelease
     else:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]/lrelease
 }
 isEmpty(QM_DIR):QM_DIR = $$PWD/src/qt/locale
@@ -388,7 +428,6 @@ OTHER_FILES += \
 # platform specific defaults, if not overridden on command line
 isEmpty(BOOST_LIB_SUFFIX) {
     macx:BOOST_LIB_SUFFIX = -mt
-    windows:BOOST_LIB_SUFFIX = -mgw49-mt-s-1_58
 }
 
 isEmpty(BOOST_THREAD_LIB_SUFFIX) {
@@ -426,10 +465,10 @@ windows:!contains(MINGW_THREAD_BUGFIX, 0) {
     # It can be turned off with MINGW_THREAD_BUGFIX=0, just in case it causes
     # any problems on some untested qmake profile now or in the future.
     DEFINES += _MT BOOST_THREAD_PROVIDES_GENERIC_SHARED_MUTEX_ON_WIN
-    QMAKE_LIBS_QT_ENTRY = -lmingwthrd $$QMAKE_LIBS_QT_ENTRY
+    QMAKE_LIBS_QT_ENTRY = -lwinpthread -lmingwthrd $$QMAKE_LIBS_QT_ENTRY
 }
 
-!windows:!macx {
+!windows:!macx:!android {
     DEFINES += LINUX
     LIBS += -lrt
 }
@@ -450,20 +489,58 @@ INCLUDEPATH += $$BOOST_INCLUDE_PATH $$BDB_INCLUDE_PATH $$OPENSSL_INCLUDE_PATH $$
 LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,)
 LIBS += -lssl -lcrypto -ldb_cxx$$BDB_LIB_SUFFIX
 # -lgdi32 has to happen after -lcrypto (see  #681)
-windows:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
-LIBS += -lboost_system$$BOOST_LIB_SUFFIX -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
-windows:LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
+windows:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32 -lcrypt32 -lwinpthread -lz
+LIBS += -lboost_system$$BOOST_LIB_SUFFIX -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX -lboost_chrono$$BOOST_LIB_SUFFIX
 
 contains(RELEASE, 1) {
-    !windows:!macx {
+    !windows:!macx:!android {
         # Linux: turn dynamic linking back on for c/c++ runtime libraries
         LIBS += -Wl,-Bdynamic
     }
 }
 
-!windows:!macx {
+!windows:!macx:!android {
     DEFINES += LINUX
     LIBS += -lrt -ldl
 }
 
-system($$QMAKE_LRELEASE -silent $$_PRO_FILE_)
+# MinGW/MXE: Windows 'byte' typedef vs C++17 std::byte (must be last — overrides Qt mkspec c++17).
+win32 {
+    CONFIG -= c++17 c++1z c++2a c++20 c++2b
+    CONFIG += c++14
+    QMAKE_CXXFLAGS += -std=gnu++14 -include $$PWD/src/qt/mingw-preinclude.h
+    QMAKE_CXXFLAGS_RELEASE += -std=gnu++14
+    QMAKE_CXXFLAGS_DEBUG += -std=gnu++14
+    # Qt/MinGW specs enable gc-sections; hash algo symbols are only referenced indirectly.
+    QMAKE_CFLAGS -= -ffunction-sections -fdata-sections
+    QMAKE_CXXFLAGS -= -ffunction-sections -fdata-sections
+    QMAKE_LFLAGS -= -Wl,--gc-sections
+}
+
+!android:system($$QMAKE_LRELEASE -silent $$_PRO_FILE_)
+
+android {
+    message(Building InfiniteRicks Android wallet)
+    DEFINES += ANDROID
+    USE_DBUS = 0
+    ANDROID_PACKAGE_SOURCE_DIR = $$PWD/src/qt/android
+    ANDROID_MIN_SDK_VERSION = 24
+    ANDROID_TARGET_SDK_VERSION = 34
+    ANDROID_APP_NAME = InfiniteRicks Wallet
+    ANDROID_VERSION_CODE = 213
+    # Android 15+ may use 16 KB memory pages on arm64 devices.
+    QMAKE_LFLAGS += -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
+    ANDROID_VERSION_NAME = $$VERSION
+
+    DISTFILES += \
+        src/qt/android/AndroidManifest.xml \
+        src/qt/android/build.gradle \
+        src/qt/android/gradle.properties \
+        src/qt/android/res/values/libs.xml \
+        src/qt/android/forms/*.ui \
+        src/qt/android/src/org/infinitericks/qt/InfiniteRicksApplication.java \
+        src/qt/android/src/org/infinitericks/qt/InfiniteRicksQtActivity.java
+
+    ANDROID_LLVM_AR = $$dirname(QMAKE_CC)/llvm-ar
+    genleveldb.commands = cd $$PWD/src/leveldb && $(MAKE) clean && CC=$$QMAKE_CC CXX=$$QMAKE_CXX AR=$$ANDROID_LLVM_AR TARGET_OS=OS_ANDROID_CROSSCOMPILE $(MAKE) OPT=\"-fPIC $$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" libleveldb.a libmemenv.a
+}

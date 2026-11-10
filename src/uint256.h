@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2012 The Bitcoin developers
+// Copyright (c) 2014-2026 The InfiniteRicks developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -351,7 +352,17 @@ public:
         return (unsigned char*)&pn[WIDTH];
     }
 
-    unsigned int size()
+    const unsigned char* begin() const
+    {
+        return (const unsigned char*)&pn[0];
+    }
+
+    const unsigned char* end() const
+    {
+        return (const unsigned char*)&pn[WIDTH];
+    }
+
+    unsigned int size() const
     {
         return sizeof(pn);
     }

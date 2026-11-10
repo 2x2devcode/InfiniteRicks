@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2012 The Bitcoin developers
+// Copyright (c) 2014-2026 The InfiniteRicks developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include "txdb.h"
@@ -27,7 +28,6 @@ using namespace std;
 using namespace boost;
 
 CWallet* pwalletMain;
-CClientUIInterface uiInterface;
 bool fConfChange;
 bool fEnforceCanonical;
 unsigned int nNodeLifespan;
@@ -86,6 +86,13 @@ void Shutdown(void* parg)
         bitdb.Flush(false);
         StopNode();
         bitdb.Flush(true);
+
+        // Timestamped wallet.dat backup on close (DB already flushed above).
+        // Stored under <datadir>/backups/ as wallet.dat.YYYY-MM-DD-HH-MM-SS
+        // (at most one automatic backup per UTC day).
+        if (pwalletMain)
+            AutoBackupWallet(*pwalletMain, false /* fFlushFirst */);
+
         boost::filesystem::remove(GetPidFile());
         UnregisterWallet(pwalletMain);
         delete pwalletMain;
@@ -149,9 +156,10 @@ bool AppInit(int argc, char* argv[])
             std::string strUsage = _("InfiniteRicks version") + " " + FormatFullVersion() + "\n\n" +
                 _("Usage:") + "\n" +
                   "  InfiniteRicksd [options]                     " + "\n" +
-                  "  InfiniteRicksd [options] <command> [params]  " + _("Send command to -server or InfiniteRicksd") + "\n" +
-                  "  InfiniteRicksd [options] help                " + _("List commands") + "\n" +
-                  "  InfiniteRicksd [options] help <command>      " + _("Get help for a command") + "\n";
+                  "  InfiniteRicks-cli [options] <command> [params]  " + _("Send command to -server or InfiniteRicksd") + "\n" +
+                  "  InfiniteRicksd [options] <command> [params]  " + _("(deprecated) same as InfiniteRicks-cli") + "\n" +
+                  "  InfiniteRicks-cli [options] help                " + _("List commands") + "\n" +
+                  "  InfiniteRicks-cli [options] help <command>      " + _("Get help for a command") + "\n";
 
             strUsage += "\n" + HelpMessage();
 
@@ -201,13 +209,22 @@ int main(int argc, char* argv[])
 
 bool static InitError(const std::string &str)
 {
+#if defined(__ANDROID__)
+    fprintf(stderr, "InitError: %s\n", str.c_str());
+    strMiscWarning = str;
+#else
     uiInterface.ThreadSafeMessageBox(str, _("InfiniteRicks"), CClientUIInterface::OK | CClientUIInterface::MODAL);
+#endif
     return false;
 }
 
 bool static InitWarning(const std::string &str)
 {
+#if defined(__ANDROID__)
+    fprintf(stderr, "InitWarning: %s\n", str.c_str());
+#else
     uiInterface.ThreadSafeMessageBox(str, _("InfiniteRicks"), CClientUIInterface::OK | CClientUIInterface::ICON_EXCLAMATION | CClientUIInterface::MODAL);
+#endif
     return true;
 }
 
@@ -297,6 +314,10 @@ std::string HelpMessage()
         "  -keypool=<n>           " + _("Set key pool size to <n> (default: 100)") + "\n" +
         "  -rescan                " + _("Rescan the block chain for missing wallet transactions") + "\n" +
         "  -salvagewallet         " + _("Attempt to recover private keys from a corrupt wallet.dat") + "\n" +
+        "  -zapwallettxes=<mode>  " + _("Delete all wallet transactions and recover them through a rescan on startup") + "\n" +
+        "                         " + _("(1 = keep transaction metadata, 2 = discard transaction metadata)") + "\n" +
+        "  -reindex               " + _("Rebuild the blockchain index from current block files on startup") + "\n" +
+        "  -resync                " + _("Delete local blockchain data and synchronize from scratch on startup") + "\n" +
         "  -checkblocks=<n>       " + _("How many blocks to check at startup (default: 2500, 0 = all)") + "\n" +
         "  -checklevel=<n>        " + _("How thorough the block verification is (0-6, default: 1)") + "\n" +
         "  -loadblock=<file>      " + _("Imports blocks from external blk000?.dat file") + "\n" +
@@ -404,6 +425,13 @@ bool AppInit2()
         SoftSetBoolArg("-irc", true);
     }
 
+#if defined(__ANDROID__)
+    // Mobile: outbound connections only; avoid bind/listen failures and startup dialogs.
+    SoftSetBoolArg("-listen", false);
+    SoftSetBoolArg("-upnp", false);
+    SoftSetBoolArg("-discover", false);
+#endif
+
     if (mapArgs.count("-bind")) {
         // when specifying an explicit binding address, you want to listen on it
         // even when -connect or -proxy is specified
@@ -436,6 +464,9 @@ bool AppInit2()
         // Rewrite just private keys: rescan to find transactions
         SoftSetBoolArg("-rescan", true);
     }
+
+    if (GetBoolArg("-zapwallettxes", false))
+        SoftSetBoolArg("-rescan", true);
 
     // ********************************************************* Step 3: parameter-to-internal-flags
 
@@ -536,7 +567,7 @@ bool AppInit2()
         ShrinkDebugFile();
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     printf("InfiniteRicks version %s (%s)\n", FormatFullVersion().c_str(), CLIENT_DATE.c_str());
-    printf("Using OpenSSL version %s\n", SSLeay_version(SSLEAY_VERSION));
+    printf("Using OpenSSL version %s\n", OpenSSL_version(OPENSSL_VERSION));
     if (!fLogTimestamps)
         printf("Startup time: %s\n", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
     printf("Default data directory %s\n", GetDefaultDataDir().string().c_str());
@@ -567,7 +598,7 @@ bool AppInit2()
             return false;
     }
 
-    if (filesystem::exists(GetDataDir() / strWalletFileName))
+    if (boost::filesystem::exists(GetDataDir() / strWalletFileName))
     {
         CDBEnv::VerifyResult r = bitdb.Verify(strWalletFileName, CWalletDB::Recover);
         if (r == CDBEnv::RECOVER_OK)
@@ -703,6 +734,33 @@ bool AppInit2()
         return InitError(msg);
     }
 
+    if (GetBoolArg("-resync", false))
+    {
+        uiInterface.InitMessage(_("Preparing for resync..."));
+        printf("-resync: removing local blockchain data\n");
+        boost::filesystem::path pathTxLevelDB = GetDataDir() / "txleveldb";
+        if (boost::filesystem::exists(pathTxLevelDB))
+            boost::filesystem::remove_all(pathTxLevelDB);
+        unsigned int nFile = 1;
+        while (true)
+        {
+            boost::filesystem::path pathBlockFile = GetDataDir() / strprintf("blk%04u.dat", nFile);
+            if (!boost::filesystem::exists(pathBlockFile))
+                break;
+            boost::filesystem::remove(pathBlockFile);
+            ++nFile;
+        }
+        SoftSetBoolArg("-rescan", true);
+    }
+    else if (GetBoolArg("-reindex", false))
+    {
+        uiInterface.InitMessage(_("Reindexing blockchain..."));
+        printf("-reindex: removing txleveldb\n");
+        boost::filesystem::path pathTxLevelDB = GetDataDir() / "txleveldb";
+        if (boost::filesystem::exists(pathTxLevelDB))
+            boost::filesystem::remove_all(pathTxLevelDB);
+    }
+
     if (GetBoolArg("-loadblockindextest"))
     {
         CTxDB txdb("r");
@@ -727,6 +785,22 @@ bool AppInit2()
         return false;
     }
     printf(" block index %15" PRId64 "ms\n", GetTimeMillis() - nStart);
+
+    if (GetBoolArg("-reindex", false) && !GetBoolArg("-resync", false))
+    {
+        uiInterface.InitMessage(_("Reindexing block files..."));
+        int nFile = 1;
+        while (true)
+        {
+            FILE* file = OpenBlockFile(nFile, 0, "rb");
+            if (!file)
+                break;
+            printf("Reindexing block file blk%04u.dat...\n", (unsigned int)nFile);
+            LoadExternalBlockFile(file);
+            ++nFile;
+        }
+        printf("Reindexing finished\n");
+    }
 
     if (GetBoolArg("-printblockindex") || GetBoolArg("-printblocktree"))
     {
@@ -797,6 +871,21 @@ bool AppInit2()
             strErrors << _("Error loading wallet.dat") << "\n";
     }
 
+    std::vector<CWalletTx> vWtx;
+    if (GetBoolArg("-zapwallettxes", false))
+    {
+        uiInterface.InitMessage(_("Zapping all transactions from wallet..."));
+        printf("Zapping all transactions from wallet...\n");
+        CWalletDB walletdb(strWalletFileName);
+        DBErrors nZapWalletRet = walletdb.ZapWalletTx(pwalletMain, vWtx);
+        if (nZapWalletRet != DB_LOAD_OK)
+        {
+            strErrors << _("Error loading wallet.dat: Wallet corrupted") << "\n";
+            printf("%s", strErrors.str().c_str());
+            return InitError(strErrors.str());
+        }
+    }
+
     if (GetBoolArg("-upgradewallet", fFirstRun))
     {
         int nMaxVersion = GetArg("-upgradewallet", 0);
@@ -831,6 +920,11 @@ bool AppInit2()
 
     RegisterWallet(pwalletMain);
 
+    // Timestamped wallet.dat backup on open.
+    // Stored under <datadir>/backups/ as wallet.dat.YYYY-MM-DD-HH-MM-SS
+    // (at most one automatic backup per UTC day).
+    AutoBackupWallet(*pwalletMain, true /* fFlushFirst */);
+
     CBlockIndex *pindexRescan = pindexBest;
     if (GetBoolArg("-rescan"))
         pindexRescan = pindexGenesisBlock;
@@ -848,6 +942,27 @@ bool AppInit2()
         nStart = GetTimeMillis();
         pwalletMain->ScanForWalletTransactions(pindexRescan, true);
         printf(" rescan      %15" PRId64 "ms\n", GetTimeMillis() - nStart);
+
+        if (GetBoolArg("-zapwallettxes", false) && GetArg("-zapwallettxes", "1") != "2")
+        {
+            CWalletDB walletdb(strWalletFileName);
+            BOOST_FOREACH(const CWalletTx& oldTx, vWtx)
+            {
+                std::map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.find(oldTx.GetHash());
+                if (it == pwalletMain->mapWallet.end())
+                    continue;
+
+                CWalletTx& newTx = it->second;
+                newTx.mapValue = oldTx.mapValue;
+                newTx.vOrderForm = oldTx.vOrderForm;
+                newTx.nTimeReceived = oldTx.nTimeReceived;
+                newTx.nTimeSmart = oldTx.nTimeSmart;
+                newTx.fFromMe = oldTx.fFromMe;
+                newTx.strFromAccount = oldTx.strFromAccount;
+                newTx.nOrderPos = oldTx.nOrderPos;
+                newTx.WriteToDisk();
+            }
+        }
     }
 
     // ********************************************************* Step 9: import blocks
@@ -865,13 +980,13 @@ bool AppInit2()
         exit(0);
     }
 
-    filesystem::path pathBootstrap = GetDataDir() / "bootstrap.dat";
-    if (filesystem::exists(pathBootstrap)) {
+    boost::filesystem::path pathBootstrap = GetDataDir() / "bootstrap.dat";
+    if (boost::filesystem::exists(pathBootstrap)) {
         uiInterface.InitMessage(_("Importing bootstrap blockchain data file."));
 
         FILE *file = fopen(pathBootstrap.string().c_str(), "rb");
         if (file) {
-            filesystem::path pathBootstrapOld = GetDataDir() / "bootstrap.dat.old";
+            boost::filesystem::path pathBootstrapOld = GetDataDir() / "bootstrap.dat.old";
             LoadExternalBlockFile(file);
             RenameOver(pathBootstrap, pathBootstrapOld);
         }
@@ -906,11 +1021,13 @@ bool AppInit2()
     printf("mapWallet.size() = %" PRIszu "\n",       pwalletMain->mapWallet.size());
     printf("mapAddressBook.size() = %" PRIszu "\n",  pwalletMain->mapAddressBook.size());
 
+#if !defined(__ANDROID__)
     if (!NewThread(StartNode, NULL))
         InitError(_("Error: could not start node"));
 
     if (fServer)
         NewThread(ThreadRPCServer, NULL);
+#endif
 
     // ********************************************************* Step 12: finished
 
@@ -930,5 +1047,16 @@ bool AppInit2()
         MilliSleep(5000);
 #endif
 
+    return true;
+}
+
+bool StartNodeThread()
+{
+    if (!NewThread(StartNode, NULL)) {
+        InitError(_("Error: could not start node"));
+        return false;
+    }
+    if (fServer)
+        NewThread(ThreadRPCServer, NULL);
     return true;
 }

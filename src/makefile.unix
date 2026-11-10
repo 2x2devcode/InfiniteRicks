@@ -1,4 +1,5 @@
 # Copyright (c) 2009-2010 Satoshi Nakamoto
+# Copyright (c) 2014-2026 The InfiniteRicks developers
 # Distributed under the MIT/X11 software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -28,6 +29,7 @@ LIBS += \
    -l boost_filesystem$(BOOST_LIB_SUFFIX) \
    -l boost_program_options$(BOOST_LIB_SUFFIX) \
    -l boost_thread$(BOOST_LIB_SUFFIX) \
+   -l boost_chrono$(BOOST_LIB_SUFFIX) \
    -l db_cxx$(BDB_LIB_SUFFIX) \
    -l ssl \
    -l crypto
@@ -91,7 +93,7 @@ endif
 
 # CXXFLAGS can be specified on the make command line, so we use xCXXFLAGS that only
 # adds some defaults in front. Unfortunately, CXXFLAGS=... $(CXXFLAGS) does not work.
-xCXXFLAGS=-O2 $(EXT_OPTIONS) -pthread -Wall -Wextra -Wno-ignored-qualifiers -Wformat -Wformat-security -Wno-unused-parameter \
+xCXXFLAGS=-O2 $(EXT_OPTIONS) -pthread -Wall -Wextra -Wno-ignored-qualifiers -Wformat -Wformat-security -Wno-unused-parameter -Wno-deprecated-declarations \
     $(DEBUGFLAGS) $(DEFS) $(HARDENING) $(CXXFLAGS)
 
 # LDFLAGS can be specified on the make command line, so we use xLDFLAGS that only
@@ -115,6 +117,7 @@ OBJS= \
     obj/net.o \
     obj/protocol.o \
     obj/bitcoinrpc.o \
+    obj/rpcclient.o \
     obj/rpcdump.o \
     obj/rpcnet.o \
     obj/rpcmining.o \
@@ -144,7 +147,46 @@ OBJS= \
     obj/zerocoin/SpendMetaData.o \
     obj/zerocoin/ZeroTest.o
 
-all: InfiniteRicksd
+all: InfiniteRicksd InfiniteRicks-cli InfiniteRicks-tx
+
+TOOL_LIBS = \
+ -Wl,-B$(LMODE) \
+   -l boost_system$(BOOST_LIB_SUFFIX) \
+   -l boost_filesystem$(BOOST_LIB_SUFFIX) \
+   -l boost_program_options$(BOOST_LIB_SUFFIX) \
+   -l boost_thread$(BOOST_LIB_SUFFIX) \
+   -l boost_chrono$(BOOST_LIB_SUFFIX) \
+   -l ssl \
+   -l crypto \
+ -Wl,-B$(LMODE2) \
+   -l z \
+   -l dl \
+   -l pthread
+
+CLI_OBJS= \
+    obj/infinitericks-cli.o \
+    obj/rpcclient.o \
+    obj/util.o \
+    obj/netbase.o \
+    obj/version.o \
+    obj/sync.o \
+    obj/noui.o
+
+TX_OBJS= \
+    obj/infinitericks-tx.o \
+    obj/txtools.o \
+    obj/script.o \
+    obj/util.o \
+    obj/netbase.o \
+    obj/version.o \
+    obj/sync.o \
+    obj/noui.o \
+    obj/key.o \
+    obj/keystore.o \
+    obj/crypter.o \
+    obj/pbkdf2.o \
+    obj/scrypt.o \
+    obj/scrypt-x86_64.o
 
 LIBS += $(CURDIR)/leveldb/libleveldb.a $(CURDIR)/leveldb/libmemenv.a
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
@@ -188,8 +230,14 @@ obj/zerocoin/%.o: zerocoin/%.cpp
 InfiniteRicksd: $(OBJS:obj/%=obj/%)
 	$(LINK) $(xCXXFLAGS) -o $@ $^ $(xLDFLAGS) $(LIBS)
 
+InfiniteRicks-cli: $(CLI_OBJS)
+	$(LINK) $(xCXXFLAGS) -o $@ $^ $(xLDFLAGS) $(TOOL_LIBS)
+
+InfiniteRicks-tx: $(TX_OBJS)
+	$(LINK) $(xCXXFLAGS) -o $@ $^ $(xLDFLAGS) $(TOOL_LIBS)
+
 clean:
-	-rm -f InfiniteRicksd
+	-rm -f InfiniteRicksd InfiniteRicks-cli InfiniteRicks-tx
 	-rm -f obj/*.o
 	-rm -f obj/zerocoin/*.o
 	-rm -f obj/*.P
