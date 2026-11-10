@@ -1,6 +1,6 @@
 TEMPLATE = app
 TARGET = InfiniteRicks-qt
-VERSION = 2.0.0
+VERSION = 2.1.0
 INCLUDEPATH += src src/json src/qt
 DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE BOOST_BIND_GLOBAL_PLACEHOLDERS
 CONFIG += no_include_pwd
@@ -527,7 +527,7 @@ android {
     ANDROID_MIN_SDK_VERSION = 24
     ANDROID_TARGET_SDK_VERSION = 34
     ANDROID_APP_NAME = InfiniteRicks Wallet
-    ANDROID_VERSION_CODE = 212
+    ANDROID_VERSION_CODE = 213
     # Android 15+ may use 16 KB memory pages on arm64 devices.
     QMAKE_LFLAGS += -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
     ANDROID_VERSION_NAME = $$VERSION
