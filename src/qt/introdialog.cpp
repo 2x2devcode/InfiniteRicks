@@ -10,6 +10,7 @@
 #include <QStorageInfo>
 
 #include <boost/filesystem.hpp>
+#include <boost/version.hpp>
 
 IntroDialog::IntroDialog(QWidget *parent) :
     QDialog(parent),
@@ -153,7 +154,12 @@ bool IntroDialog::installBootstrapFile(const QString &dataPath)
 
     boost::filesystem::path dest = boost::filesystem::path(dataPath.toStdString()) / "bootstrap.dat";
     try {
-#if BOOST_VERSION >= 104000
+#if BOOST_VERSION >= 107400
+        boost::filesystem::copy_file(
+            bootstrapFile.toStdString(),
+            dest,
+            boost::filesystem::copy_options::overwrite_existing);
+#elif BOOST_VERSION >= 104000
         boost::filesystem::copy_file(
             bootstrapFile.toStdString(),
             dest,

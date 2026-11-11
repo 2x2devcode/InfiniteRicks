@@ -636,7 +636,10 @@ bool BackupWallet(const CWallet& wallet, const string& strDest)
                     pathDest /= wallet.strWalletFile;
 
                 try {
-#if BOOST_VERSION >= 104000
+#if BOOST_VERSION >= 107400
+                    // Boost 1.74+: copy_option renamed to copy_options
+                    boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_options::overwrite_existing);
+#elif BOOST_VERSION >= 104000
                     boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_option::overwrite_if_exists);
 #else
                     boost::filesystem::copy_file(pathSrc, pathDest);
@@ -713,7 +716,9 @@ bool AutoBackupWallet(const CWallet& wallet, bool fFlushFirst)
 
     // Shutdown path: DB environment was already flushed by the caller.
     try {
-#if BOOST_VERSION >= 104000
+#if BOOST_VERSION >= 107400
+        boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_options::overwrite_existing);
+#elif BOOST_VERSION >= 104000
         boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_option::overwrite_if_exists);
 #else
         boost::filesystem::copy_file(pathSrc, pathDest);
