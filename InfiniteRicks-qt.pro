@@ -490,7 +490,16 @@ LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) $$join(OPENSSL_LIB
 LIBS += -lssl -lcrypto -ldb_cxx$$BDB_LIB_SUFFIX
 # -lgdi32 has to happen after -lcrypto (see  #681)
 windows:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32 -lcrypt32 -lwinpthread -lz
-LIBS += -lboost_system$$BOOST_LIB_SUFFIX -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX -lboost_chrono$$BOOST_LIB_SUFFIX
+# libboost_system is header-only since Boost 1.69; skip linking when absent (Ubuntu 24.04+).
+BOOST_SYSTEM_LIB = -lboost_system$$BOOST_LIB_SUFFIX
+unix:!macx:!android {
+    BOOST_SYSTEM_PRESENT = $$system(ldconfig -p 2>/dev/null | grep libboost_system || true)
+    isEmpty(BOOST_SYSTEM_PRESENT) {
+        BOOST_SYSTEM_LIB =
+        message(libboost_system not found; skipping -lboost_system \(header-only Boost\))
+    }
+}
+LIBS += $$BOOST_SYSTEM_LIB -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX -lboost_chrono$$BOOST_LIB_SUFFIX
 
 contains(RELEASE, 1) {
     !windows:!macx:!android {

@@ -22,10 +22,27 @@ ifdef STATIC
 	endif
 endif
 
+# libboost_system became header-only in Boost 1.69 and is absent on Ubuntu 24.04+.
+# Link it only when the shared/static library is actually installed.
+BOOST_MULTIARCH := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null)
+BOOST_SYSTEM_LIBFILE := $(firstword $(wildcard \
+  $(if $(BOOST_LIB_PATH),$(BOOST_LIB_PATH)/libboost_system$(BOOST_LIB_SUFFIX).so $(BOOST_LIB_PATH)/libboost_system$(BOOST_LIB_SUFFIX).a) \
+  /usr/lib/$(BOOST_MULTIARCH)/libboost_system$(BOOST_LIB_SUFFIX).so \
+  /usr/lib/$(BOOST_MULTIARCH)/libboost_system.so \
+  /usr/lib/libboost_system$(BOOST_LIB_SUFFIX).so \
+  /usr/lib/libboost_system.so \
+  /usr/local/lib/libboost_system$(BOOST_LIB_SUFFIX).so \
+  /usr/local/lib/libboost_system.so))
+ifneq ($(BOOST_SYSTEM_LIBFILE),)
+BOOST_SYSTEM_LIB := -l boost_system$(BOOST_LIB_SUFFIX)
+else
+BOOST_SYSTEM_LIB :=
+endif
+
 # for boost 1.37, add -mt to the boost libraries
 LIBS += \
  -Wl,-B$(LMODE) \
-   -l boost_system$(BOOST_LIB_SUFFIX) \
+   $(BOOST_SYSTEM_LIB) \
    -l boost_filesystem$(BOOST_LIB_SUFFIX) \
    -l boost_program_options$(BOOST_LIB_SUFFIX) \
    -l boost_thread$(BOOST_LIB_SUFFIX) \
@@ -151,7 +168,7 @@ all: InfiniteRicksd InfiniteRicks-cli InfiniteRicks-tx
 
 TOOL_LIBS = \
  -Wl,-B$(LMODE) \
-   -l boost_system$(BOOST_LIB_SUFFIX) \
+   $(BOOST_SYSTEM_LIB) \
    -l boost_filesystem$(BOOST_LIB_SUFFIX) \
    -l boost_program_options$(BOOST_LIB_SUFFIX) \
    -l boost_thread$(BOOST_LIB_SUFFIX) \
