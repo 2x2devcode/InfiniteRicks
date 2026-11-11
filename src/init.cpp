@@ -14,7 +14,6 @@
 #include "zerocoin/ZeroTest.h"
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
-#include <boost/filesystem/convenience.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <openssl/crypto.h>
@@ -529,8 +528,11 @@ bool AppInit2()
     std::string strDataDir = GetDataDir().string();
     std::string strWalletFileName = GetArg("-wallet", "wallet.dat");
 
-    // strWalletFileName must be a plain filename without a directory
-    if (strWalletFileName != boost::filesystem::basename(strWalletFileName) + boost::filesystem::extension(strWalletFileName))
+    // strWalletFileName must be a plain filename without a directory.
+    // Use path::filename() instead of the removed boost/filesystem/convenience.hpp
+    // helpers (basename/extension) for Boost compatibility on Ubuntu 24.04+.
+    boost::filesystem::path pathWalletFile(strWalletFileName);
+    if (pathWalletFile.filename().string() != strWalletFileName)
         return InitError(strprintf(_("Wallet %s resides outside data directory %s."), strWalletFileName.c_str(), strDataDir.c_str()));
 
     // Make sure only a single Bitcoin process is using the data directory.
