@@ -488,14 +488,6 @@ macx:QMAKE_CXXFLAGS_THREAD += -pthread
 INCLUDEPATH += $$BOOST_INCLUDE_PATH $$BDB_INCLUDE_PATH $$OPENSSL_INCLUDE_PATH $$QRENCODE_INCLUDE_PATH
 LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,)
 LIBS += -lssl -lcrypto -ldb_cxx$$BDB_LIB_SUFFIX
-# OpenSSL may reference zlib/zstd (inflateEnd / ZSTD_compress); these must follow -lcrypto.
-unix:LIBS += -lz
-unix {
-    ZSTD_PRESENT = $$system(ldconfig -p 2>/dev/null | grep libzstd || true)
-    !isEmpty(ZSTD_PRESENT) {
-        LIBS += -lzstd
-    }
-}
 # -lgdi32 has to happen after -lcrypto (see  #681)
 windows:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32 -lcrypt32 -lwinpthread -lz
 # libboost_system is header-only since Boost 1.69; skip linking when absent (Ubuntu 24.04+).
@@ -519,6 +511,16 @@ contains(RELEASE, 1) {
 !windows:!macx:!android {
     DEFINES += LINUX
     LIBS += -lrt -ldl
+}
+
+# OpenSSL compression deps must be linked dynamically: RELEASE=1 uses -Bstatic
+# earlier, and Ubuntu often ships only libzstd.so (no libzstd.a).
+unix:!android {
+    LIBS += -Wl,-Bdynamic -lz
+    ZSTD_PRESENT = $$system(ldconfig -p 2>/dev/null | grep libzstd || true)
+    !isEmpty(ZSTD_PRESENT) {
+        LIBS += -lzstd
+    }
 }
 
 # MinGW/MXE: Windows 'byte' typedef vs C++17 std::byte (must be last — overrides Qt mkspec c++17).
