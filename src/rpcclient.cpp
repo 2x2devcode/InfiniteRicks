@@ -32,6 +32,12 @@
 #define RPC_SSL_CONTEXT(method) boost::asio::ssl::context(io_service, method)
 #endif
 
+#if BOOST_VERSION >= 106600
+typedef boost::asio::io_context rpc_io_service;
+#else
+typedef boost::asio::io_service rpc_io_service;
+#endif
+
 using namespace std;
 using namespace boost;
 using namespace boost::asio;
@@ -164,10 +170,18 @@ public:
 #else
         ip::tcp::resolver resolver(stream.get_io_service());
 #endif
+        boost::system::error_code error;
+#if BOOST_VERSION >= 106600
+        ip::tcp::resolver::results_type endpoints = resolver.resolve(server, port, error);
+        if (error)
+            return false;
+        asio::connect(stream.lowest_layer(), endpoints, error);
+        return !error;
+#else
         ip::tcp::resolver::query query(server.c_str(), port.c_str());
         ip::tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
         ip::tcp::resolver::iterator end;
-        boost::system::error_code error = asio::error::host_not_found;
+        error = asio::error::host_not_found;
         while (error && endpoint_iterator != end)
         {
             stream.lowest_layer().close();
@@ -176,6 +190,7 @@ public:
         if (error)
             return false;
         return true;
+#endif
     }
 
 private:
@@ -193,7 +208,7 @@ Object CallRPC(const string& strMethod, const Array& params)
                 GetConfigFile().string().c_str()));
 
     bool fUseSSL = GetBoolArg("-rpcssl");
-    asio::io_service io_service;
+    rpc_io_service io_service;
     ssl::context context(RPC_SSL_CONTEXT(ssl::context::sslv23));
     context.set_options(ssl::context::no_sslv2);
     asio::ssl::stream<asio::ip::tcp::socket> sslStream(io_service, context);
