@@ -513,22 +513,34 @@ contains(RELEASE, 1) {
     LIBS += -lrt -ldl
 }
 
-# OpenSSL compression deps must be linked dynamically: RELEASE=1 uses -Bstatic
-# earlier. Prefer libzstd.so (-dev). If only the runtime libzstd.so.1 is present
-# (common without libzstd-dev), link it explicitly so OpenSSL's ZSTD_compress
-# resolves without a "DSO missing from command line" error.
+# OpenSSL (Ubuntu 26.04+) may need zlib/zstd/jitterentropy when linking
+# libcrypto.a. RELEASE=1 uses -Bstatic earlier, so force -Bdynamic here.
+# Prefer -dev linker names; fall back to runtime SONAMEs / static archive.
 unix:!android {
+    OPENSSL_EXTRA_ARCH = $$system(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null)
     LIBS += -Wl,-Bdynamic -lz
-    ZSTD_ARCH = $$system(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null)
-    ZSTD_LINK_LIB = $$system(ls /usr/lib/$$ZSTD_ARCH/libzstd.so /usr/lib/libzstd.so /usr/local/lib/libzstd.so 2>/dev/null | head -1)
-    ZSTD_SO1 = $$system(ls /usr/lib/$$ZSTD_ARCH/libzstd.so.1 /usr/lib/libzstd.so.1 /usr/local/lib/libzstd.so.1 2>/dev/null | head -1)
+
+    ZSTD_LINK_LIB = $$system(ls /usr/lib/$$OPENSSL_EXTRA_ARCH/libzstd.so /usr/lib/libzstd.so /usr/local/lib/libzstd.so 2>/dev/null | head -1)
+    ZSTD_SO1 = $$system(ls /usr/lib/$$OPENSSL_EXTRA_ARCH/libzstd.so.1 /usr/lib/libzstd.so.1 /usr/local/lib/libzstd.so.1 2>/dev/null | head -1)
     !isEmpty(ZSTD_LINK_LIB) {
         LIBS += -lzstd
     } else:!isEmpty(ZSTD_SO1) {
         LIBS += -l:libzstd.so.1
         message(linking runtime $$ZSTD_SO1 \(install libzstd-dev for the libzstd.so symlink\))
+    }
+
+    JENT_LINK_LIB = $$system(ls /usr/lib/$$OPENSSL_EXTRA_ARCH/libjitterentropy.so /usr/lib/libjitterentropy.so /usr/local/lib/libjitterentropy.so 2>/dev/null | head -1)
+    JENT_SO = $$system(ls /usr/lib/$$OPENSSL_EXTRA_ARCH/libjitterentropy.so.* /usr/lib/libjitterentropy.so.* 2>/dev/null | head -1)
+    JENT_A = $$system(ls /usr/lib/$$OPENSSL_EXTRA_ARCH/libjitterentropy.a /usr/lib/libjitterentropy.a 2>/dev/null | head -1)
+    !isEmpty(JENT_LINK_LIB) {
+        LIBS += -ljitterentropy
+    } else:!isEmpty(JENT_SO) {
+        LIBS += -l:$$system(basename $$JENT_SO)
+        message(linking runtime $$JENT_SO \(install libjitterentropy3-dev if needed\))
+    } else:!isEmpty(JENT_A) {
+        LIBS += -l:libjitterentropy.a
     } else {
-        message(libzstd not found \(install libzstd1 or libzstd-dev if OpenSSL needs zstd\))
+        message(libjitterentropy not found \(install libjitterentropy3-dev if OpenSSL needs jitter\))
     }
 }
 

@@ -59,8 +59,8 @@ ifneq (${USE_UPNP}, -)
 	DEFS += -DUSE_UPNP=$(USE_UPNP)
 endif
 
-# OpenSSL built with zstd support needs zstd after -lcrypto (Ubuntu 26.04+).
-# Prefer the -dev symlink; fall back to the runtime SONAME if needed.
+# OpenSSL (Ubuntu 26.04+) may need zstd + jitterentropy after -lcrypto.
+# Prefer -dev linker names; fall back to runtime SONAMEs / static archive.
 ZSTD_LIBFILE := $(firstword $(wildcard \
   /usr/lib/$(BOOST_MULTIARCH)/libzstd.so \
   /usr/lib/libzstd.so \
@@ -77,10 +77,31 @@ else
 ZSTD_LIB :=
 endif
 
+JENT_LIBFILE := $(firstword $(wildcard \
+  /usr/lib/$(BOOST_MULTIARCH)/libjitterentropy.so \
+  /usr/lib/libjitterentropy.so \
+  /usr/local/lib/libjitterentropy.so))
+JENT_SO := $(firstword $(wildcard \
+  /usr/lib/$(BOOST_MULTIARCH)/libjitterentropy.so.* \
+  /usr/lib/libjitterentropy.so.*))
+JENT_A := $(firstword $(wildcard \
+  /usr/lib/$(BOOST_MULTIARCH)/libjitterentropy.a \
+  /usr/lib/libjitterentropy.a))
+ifneq ($(JENT_LIBFILE),)
+JENT_LIB := -l jitterentropy
+else ifneq ($(JENT_SO),)
+JENT_LIB := -l:$(notdir $(JENT_SO))
+else ifneq ($(JENT_A),)
+JENT_LIB := -l:libjitterentropy.a
+else
+JENT_LIB :=
+endif
+
 LIBS+= \
  -Wl,-B$(LMODE2) \
    -l z \
    $(ZSTD_LIB) \
+   $(JENT_LIB) \
    -l dl \
    -l pthread
 
@@ -197,6 +218,7 @@ TOOL_LIBS = \
  -Wl,-B$(LMODE2) \
    -l z \
    $(ZSTD_LIB) \
+   $(JENT_LIB) \
    -l dl \
    -l pthread
 
