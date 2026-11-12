@@ -514,15 +514,21 @@ contains(RELEASE, 1) {
 }
 
 # OpenSSL compression deps must be linked dynamically: RELEASE=1 uses -Bstatic
-# earlier. Detect the *linker* symlink libzstd.so (from libzstd-dev), not just
-# the runtime libzstd.so.1 that ldconfig lists — otherwise -lzstd fails.
+# earlier. Prefer libzstd.so (-dev). If only the runtime libzstd.so.1 is present
+# (common without libzstd-dev), link it explicitly so OpenSSL's ZSTD_compress
+# resolves without a "DSO missing from command line" error.
 unix:!android {
     LIBS += -Wl,-Bdynamic -lz
-    ZSTD_LINK_LIB = $$system(ls /usr/lib/$$system(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null)/libzstd.so /usr/lib/libzstd.so /usr/local/lib/libzstd.so 2>/dev/null | head -1)
+    ZSTD_ARCH = $$system(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null)
+    ZSTD_LINK_LIB = $$system(ls /usr/lib/$$ZSTD_ARCH/libzstd.so /usr/lib/libzstd.so /usr/local/lib/libzstd.so 2>/dev/null | head -1)
+    ZSTD_SO1 = $$system(ls /usr/lib/$$ZSTD_ARCH/libzstd.so.1 /usr/lib/libzstd.so.1 /usr/local/lib/libzstd.so.1 2>/dev/null | head -1)
     !isEmpty(ZSTD_LINK_LIB) {
         LIBS += -lzstd
+    } else:!isEmpty(ZSTD_SO1) {
+        LIBS += -l:libzstd.so.1
+        message(linking runtime $$ZSTD_SO1 \(install libzstd-dev for the libzstd.so symlink\))
     } else {
-        message(libzstd.so not found \(install libzstd-dev if OpenSSL needs zstd\))
+        message(libzstd not found \(install libzstd1 or libzstd-dev if OpenSSL needs zstd\))
     }
 }
 
