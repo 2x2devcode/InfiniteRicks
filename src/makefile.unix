@@ -59,13 +59,20 @@ ifneq (${USE_UPNP}, -)
 	DEFS += -DUSE_UPNP=$(USE_UPNP)
 endif
 
-# OpenSSL built with zstd support needs -lzstd after -lcrypto (Ubuntu 26.04+).
+# OpenSSL built with zstd support needs zstd after -lcrypto (Ubuntu 26.04+).
+# Prefer the -dev symlink; fall back to the runtime SONAME if needed.
 ZSTD_LIBFILE := $(firstword $(wildcard \
   /usr/lib/$(BOOST_MULTIARCH)/libzstd.so \
   /usr/lib/libzstd.so \
   /usr/local/lib/libzstd.so))
+ZSTD_SO1 := $(firstword $(wildcard \
+  /usr/lib/$(BOOST_MULTIARCH)/libzstd.so.1 \
+  /usr/lib/libzstd.so.1 \
+  /usr/local/lib/libzstd.so.1))
 ifneq ($(ZSTD_LIBFILE),)
 ZSTD_LIB := -l zstd
+else ifneq ($(ZSTD_SO1),)
+ZSTD_LIB := -l:libzstd.so.1
 else
 ZSTD_LIB :=
 endif
