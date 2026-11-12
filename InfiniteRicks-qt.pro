@@ -514,12 +514,15 @@ contains(RELEASE, 1) {
 }
 
 # OpenSSL compression deps must be linked dynamically: RELEASE=1 uses -Bstatic
-# earlier, and Ubuntu often ships only libzstd.so (no libzstd.a).
+# earlier. Detect the *linker* symlink libzstd.so (from libzstd-dev), not just
+# the runtime libzstd.so.1 that ldconfig lists — otherwise -lzstd fails.
 unix:!android {
     LIBS += -Wl,-Bdynamic -lz
-    ZSTD_PRESENT = $$system(ldconfig -p 2>/dev/null | grep libzstd || true)
-    !isEmpty(ZSTD_PRESENT) {
+    ZSTD_LINK_LIB = $$system(ls /usr/lib/$$system(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null)/libzstd.so /usr/lib/libzstd.so /usr/local/lib/libzstd.so 2>/dev/null | head -1)
+    !isEmpty(ZSTD_LINK_LIB) {
         LIBS += -lzstd
+    } else {
+        message(libzstd.so not found \(install libzstd-dev if OpenSSL needs zstd\))
     }
 }
 
