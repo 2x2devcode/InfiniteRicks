@@ -178,7 +178,11 @@ apt-get install libssl-dev libdb++-dev
 ```
 ## This Step is needed as well
  ```
- sudo apt-get install libqt4-dev libminiupnpc-dev
+sudo apt-get install libqt4-dev libminiupnpc-dev
+```
+## Ubuntu 26
+```
+sudo apt-get install -y libzstd-dev
 ```
 ## Then execute the following:
 ```
